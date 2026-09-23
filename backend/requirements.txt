@@ -1,0 +1,24 @@
+fastapi==0.115.6
+uvicorn==0.34.0
+httpx==0.28.1
+pydantic==2.10.4
+python-dotenv==1.0.1
+python-multipart==0.0.20
+pypdf==5.1.0
+python-docx==1.1.2
+lxml==5.3.0
+openpyxl==3.1.5
+olefile==0.47
+
+# 向量检索（真实 RAG）：中文 embedding 模型推理依赖
+# 模型为 BGE-small-zh-v1.5（ONNX 格式），内嵌于 backend/vendor/bge/，跨架构无需处理
+onnxruntime==1.15.1
+numpy==1.24.4
+tokenizers==0.13.3
+
+# 说明：
+# - jieba（知识库分词）为纯 Python 源码包，已内嵌于 backend/vendor/jieba/，运行时注入路径，无需 pip 安装；
+# - OCR 引擎（rapidocr_onnxruntime / paddleocr / tesseract）为可选能力，需离线单独安装对应 wheel，未安装时 /api/ocr 返回 503 友好提示；
+# - onnxruntime / numpy / tokenizers 为向量检索依赖，代码中惰性导入：若缺失（模型或 wheel 未部署），
+#   知识库自动退化为纯 BM25 关键词检索，不影响其他功能。
+

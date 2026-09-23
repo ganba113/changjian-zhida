@@ -1,0 +1,38 @@
+# ================= 依赖与构建产物 =================
+frontend/changjian-zhida/node_modules/
+frontend/changjian-zhida/dist/
+__pycache__/
+*.pyc
+*.pyo
+
+# ================= 敏感配置（绝不进 git）=================
+backend/.env
+.env
+.env.*
+
+# ================= 数据库（含真实数据，绝不进 git）=================
+backend/chat.db
+backend/chat.db-*
+
+# ================= 离线部署二进制产物（可重新下载/打包，不进 git）=================
+# wheels：45 个 aarch64 wheel 约 100MB，可用 deploy/download_ocr.py 重新下载
+backend/wheels/
+# BGE embedding 模型（约 50MB），可从 HuggingFace/ModelScope 重新下载
+backend/vendor/bge/*.onnx
+# OCR 自定义模型目录（RapidOCR 包已内置默认模型，此目录为可选覆盖）
+backend/vendor/rapidocr/
+# 部署包与历史打包产物
+changjian-zhida-deploy.zip
+release/
+
+# ================= 大型安装包（非源码）=================
+LibreOffice_*.tar.gz
+libstdc++-*.rpm
+libgcc-*.rpm
+
+# ================= 日志与临时文件 =================
+*.log
+nohup.out
+
+# ================= WorkBuddy 项目数据（工具记忆，非项目交付物）=================
+.workbuddy/

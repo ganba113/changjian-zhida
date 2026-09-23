@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>OCR 应用 · 完整演示（图片 + PDF）</title>
+<style>
+  :root {
+    --cj-primary: #1e4fa3;
+    --cj-primary-light: #2f6bd4;
+    --cj-primary-gradient: linear-gradient(135deg, #1a3f8f, #4facf7);
+    --cj-bg: #f5f7fb;
+    --cj-border: #e4e9f2;
+    --cj-text-main: #1f2d3d;
+    --cj-text-sub: #8492a6;
+    --cj-hover-bg: #eef4fd;
+    --cj-green: #0f6e56;
+    --cj-green-bg: #e1f5ee;
+    --cj-red: #d23b3b;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
+    color: var(--cj-text-main);
+    background: var(--cj-bg);
+    height: 100vh; overflow: hidden; -webkit-font-smoothing: antialiased;
+  }
+  .demo-banner {
+    background: linear-gradient(90deg, #1a3f8f, #2f6bd4);
+    color: #fff; font-size: 12px; padding: 6px 20px;
+    letter-spacing: .5px; display: flex; align-items: center; gap: 8px;
+  }
+  .demo-banner b { font-weight: 600; }
+  .demo-banner .dot { width: 6px; height: 6px; border-radius: 50%; background: #5ff0b4; animation: blink 1.6s infinite; }
+  @keyframes blink { 50% { opacity: .3; } }
+
+  .ocr-view { height: calc(100vh - 30px); display: flex; flex-direction: column; }
+
+  .ocr-header { flex-shrink: 0; display: flex; align-items: center; gap: 14px; padding: 16px 28px 13px; background: #fff; border-bottom: 1px solid var(--cj-border); }
+  .ocr-title { flex: 1; }
+  .ocr-title h2 { font-size: 18px; font-weight: 600; }
+  .ocr-sub { margin-top: 4px; font-size: 12px; color: var(--cj-text-sub); }
+  .ocr-status { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; font-size: 12px; font-weight: 500; color: var(--cj-green); background: var(--cj-green-bg); }
+  .ocr-status svg { width: 14px; height: 14px; }
+
+  .ocr-body { flex: 1; min-height: 0; display: flex; gap: 16px; padding: 16px 28px; }
+
+  /* 左栏 */
+  .upload-panel { width: 400px; flex-shrink: 0; display: flex; flex-direction: column; }
+
+  .drop-zone { flex: 1; min-height: 340px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; background: #fff; border: 2px dashed var(--cj-border); border-radius: 14px; cursor: pointer; transition: border-color .2s, background .2s; }
+  .drop-zone:hover, .drop-zone.dragging { border-color: var(--cj-primary); background: var(--cj-hover-bg); }
+  .drop-icon { width: 64px; height: 64px; border-radius: 16px; background: var(--cj-primary-gradient); display: flex; align-items: center; justify-content: center; color: #fff; box-shadow: 0 6px 16px rgba(30,79,163,.28); }
+  .drop-icon svg { width: 32px; height: 32px; }
+  .drop-title { font-size: 15px; font-weight: 600; }
+  .drop-tip { font-size: 12px; color: var(--cj-text-sub); }
+  .demo-samples { display: flex; gap: 10px; margin-top: 2px; }
+  .sample-btn { border: 1px solid var(--cj-border); background: #fff; border-radius: 8px; padding: 8px 14px; font-size: 12px; cursor: pointer; color: var(--cj-text-main); display: inline-flex; align-items: center; gap: 6px; transition: all .15s; font-family: inherit; }
+  .sample-btn:hover { border-color: var(--cj-primary-light); color: var(--cj-primary); background: var(--cj-hover-bg); }
+  .sample-btn svg { width: 15px; height: 15px; }
+
+  .preview-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; background: #fff; border: 1px solid var(--cj-border); border-radius: 14px; overflow: hidden; }
+  .preview-head { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--cj-border); }
+  .preview-name { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .btn-text { border: none; background: none; cursor: pointer; font-size: 13px; color: var(--cj-primary); font-family: inherit; }
+  .btn-text:hover { color: var(--cj-primary-light); }
+  .preview-box { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; background: #eef1f6; padding: 14px; overflow: hidden; }
+  .preview-box img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 4px; box-shadow: 0 4px 16px rgba(0,0,0,.12); }
+  .pdf-placeholder { display: flex; flex-direction: column; align-items: center; gap: 12px; color: var(--cj-red); }
+  .pdf-placeholder .pdf-icon { width: 72px; height: 90px; }
+  .pdf-name { font-size: 13px; font-weight: 600; color: var(--cj-text-main); max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pdf-hint { font-size: 12px; color: var(--cj-text-sub); }
+  .preview-actions { flex-shrink: 0; display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-top: 1px solid var(--cj-border); }
+  .btn { border: none; cursor: pointer; font-family: inherit; border-radius: 6px; font-size: 14px; padding: 9px 18px; display: inline-flex; align-items: center; gap: 6px; transition: background .15s; }
+  .btn svg { width: 15px; height: 15px; }
+  .btn-primary { background: var(--cj-primary); color: #fff; }
+  .btn-primary:hover { background: var(--cj-primary-light); }
+  .btn-primary:disabled { background: #a9b8d6; cursor: not-allowed; }
+
+  /* 右栏 */
+  .result-panel { flex: 1; min-width: 0; display: flex; flex-direction: column; background: #fff; border: 1px solid var(--cj-border); border-radius: 14px; overflow: hidden; }
+  .result-head { flex-shrink: 0; display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--cj-border); }
+  .result-title { font-size: 14px; font-weight: 600; }
+  .result-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; padding: 3px 10px; border-radius: 999px; }
+  .badge-text { color: #1d6b52; background: #e1f5ee; }
+  .badge-ocr { color: #185fa5; background: #e6f1fb; }
+  .result-meta { margin-left: auto; font-size: 12px; color: var(--cj-text-sub); }
+  .result-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; color: var(--cj-text-sub); }
+  .result-empty svg { width: 46px; height: 46px; opacity: .3; }
+  .result-empty p { font-size: 13px; }
+  .result-content { flex: 1; min-height: 0; overflow-y: auto; padding: 18px 22px; font-size: 14px; line-height: 2; color: #2b3a4f; white-space: pre-wrap; word-break: break-word; animation: fadeIn .35s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+  .spinner { width: 15px; height: 15px; border: 2px solid rgba(255,255,255,.4); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .toast { position: fixed; top: 46px; left: 50%; transform: translateX(-50%); background: #0f6e56; color: #fff; font-size: 13px; padding: 9px 18px; border-radius: 8px; box-shadow: 0 6px 18px rgba(0,0,0,.18); opacity: 0; pointer-events: none; transition: opacity .25s, transform .25s; z-index: 99; }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(4px); }
+</style>
+</head>
+<body>
+  <div class="demo-banner">
+    <span class="dot"></span>
+    <span><b>OCR 应用 · 完整演示</b>　支持图片识别、文字型 PDF 提取、扫描型 PDF 逐页 OCR（识别结果为预置样例文本）</span>
+  </div>
+
+  <div class="ocr-view">
+    <header class="ocr-header">
+      <div class="ocr-title">
+        <h2>OCR 应用</h2>
+        <p class="ocr-sub">上传卷宗、文书、证据材料扫描件，智能提取图片与 PDF 中的文字</p>
+      </div>
+      <div class="ocr-status">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M8.5 12.2l2.3 2.3 4.7-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        RapidOCR 已就绪
+      </div>
+    </header>
+
+    <div class="ocr-body">
+      <section class="upload-panel">
+        <input type="file" id="fileInput" accept=".png,.jpg,.jpeg,.gif,.bmp,.webp,.tif,.tiff,.pdf" style="display:none" />
+
+        <div class="drop-zone" id="dropZone">
+          <div class="drop-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><path d="M7 9l5-5 5 5"/><path d="M4 15v3a2 2 0 002 2h12a2 2 0 002-2v-3"/></svg>
+          </div>
+          <div class="drop-title">点击或拖拽图片 / PDF 到此处</div>
+          <div class="drop-tip">支持 png / jpg / jpeg / bmp / webp / tif / pdf，单文件不超过 20MB</div>
+          <div class="demo-samples">
+            <button class="sample-btn" id="sampleImg">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9" r="1.3"/><path d="M3 16l4.5-4.5 4 4L16 11l5 5"/></svg>
+              示例：扫描件图片
+            </button>
+            <button class="sample-btn" id="samplePdf">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M9 15h6M9 11h2"/></svg>
+              示例：扫描版 PDF
+            </button>
+          </div>
+        </div>
+
+        <div class="preview-wrap" id="previewWrap" style="display:none">
+          <div class="preview-head">
+            <span class="preview-name" id="previewName"></span>
+            <button class="btn-text" id="btnReset">更换文件</button>
+          </div>
+          <div class="preview-box" id="previewBox"></div>
+          <div class="preview-actions">
+            <button class="btn btn-primary" id="btnRecognize">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h6l2 2h10v12H3z"/></svg>
+              <span id="btnRecognizeText">开始识别</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section class="result-panel">
+        <div class="result-head">
+          <span class="result-title">识别结果</span>
+          <span class="result-badge" id="resultBadge" style="display:none"></span>
+          <span class="result-meta" id="resultMeta" style="display:none"></span>
+          <button class="btn-text" id="btnCopy" style="display:none">复制</button>
+        </div>
+        <div class="result-empty" id="resultEmpty">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9" r="1.3"/><path d="M3 16l4.5-4.5 4 4L16 11l5 5"/></svg>
+          <p>上传图片或 PDF 并开始识别后，提取的文字将显示在这里</p>
+        </div>
+        <pre class="result-content" id="resultContent" style="display:none"></pre>
+      </section>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const $ = id => document.getElementById(id);
+    const dropZone = $('dropZone'), previewWrap = $('previewWrap'), previewBox = $('previewBox'), previewName = $('previewName'),
+          btnReset = $('btnReset'), btnRecognize = $('btnRecognize'), btnRecognizeText = $('btnRecognizeText'),
+          resultEmpty = $('resultEmpty'), resultContent = $('resultContent'),
+          resultBadge = $('resultBadge'), resultMeta = $('resultMeta'), btnCopy = $('btnCopy'), fileInput = $('fileInput');
+
+    const IMG_TEXT = `××市人民检察院
+审查报告
+
+一、案件基本情况
+犯罪嫌疑人张三，男，1990年3月出生，汉族，××省××市人。
+2026年5月12日因涉嫌盗窃罪被××市公安局刑事拘留，同年6月18日经本院批准逮捕。
+
+二、审查认定的事实
+2026年3月至5月期间，犯罪嫌疑人张三先后三次在××市××区××小区内，采取翻窗入室的方式，盗窃他人财物共计人民币12800元。上述事实有被害人陈述、证人证言、现场勘验笔录、监控录像、价格认定结论书等证据证实。
+
+三、审查意见
+本院认为，犯罪嫌疑人张三的行为已触犯《中华人民共和国刑法》第二百六十四条之规定，涉嫌盗窃罪，事实清楚，证据确实、充分。依照《中华人民共和国刑事诉讼法》第一百六十二条之规定，建议依法提起公诉。
+
+承办检察官：李四
+2026年9月15日`;
+
+    const PDF_TEXT = `【第 1 页】
+××市××区人民检察院
+审查起诉案卷材料（扫描件）
+
+案号：×检一部刑诉〔2026〕188号
+犯罪嫌疑人：张三
+案由：盗窃罪
+承办部门：第一检察部
+
+【第 2 页】
+讯问笔录（节选）
+问：你把作案经过讲一下。
+答：2026年4月20日晚上10点左右，我从××小区2号楼后面翻墙进去，用随身带的螺丝刀撬开302室的窗户，进去以后拿了衣柜抽屉里的一个钱包，里面有现金4200元。
+
+【第 3 页】
+扣押清单
+1. 现金人民币4200元
+2. 螺丝刀一把
+3. 运动鞋一双
+以上物品已由侦查人员依法扣押，并附照片。
+
+（以上为扫描件逐页 OCR 识别结果）`;
+
+    const DOC_SVG = "data:image/svg+xml;utf8," + encodeURIComponent(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="420" height="560" viewBox="0 0 420 560">' +
+      '<rect width="420" height="560" fill="#fbfaf7"/><rect x="0" y="0" width="420" height="560" fill="none" stroke="#d8d4c8"/>' +
+      '<text x="210" y="66" text-anchor="middle" font-family="SimSun,serif" font-size="24" font-weight="bold" fill="#1f1f1f">审查报告</text>' +
+      '<line x1="90" y1="84" x2="330" y2="84" stroke="#c0392b" stroke-width="2"/>' +
+      '<text x="60" y="122" font-family="SimSun,serif" font-size="13" fill="#2b2b2b">一、案件基本情况</text>' +
+      '<text x="60" y="150" font-family="SimSun,serif" font-size="12" fill="#444">犯罪嫌疑人张三，男，1990年3月出生，</text>' +
+      '<text x="60" y="170" font-family="SimSun,serif" font-size="12" fill="#444">汉族，××省××市人。</text>' +
+      '<text x="60" y="198" font-family="SimSun,serif" font-size="12" fill="#444">2026年5月12日因涉嫌盗窃罪被××市公安</text>' +
+      '<text x="60" y="218" font-family="SimSun,serif" font-size="12" fill="#444">局刑事拘留，同年6月18日经本院批准逮捕。</text>' +
+      '<text x="60" y="256" font-family="SimSun,serif" font-size="13" fill="#2b2b2b">二、审查认定的事实</text>' +
+      '<text x="60" y="284" font-family="SimSun,serif" font-size="12" fill="#444">2026年3月至5月期间，犯罪嫌疑人张三先后</text>' +
+      '<text x="60" y="304" font-family="SimSun,serif" font-size="12" fill="#444">三次在××市××区××小区内，采取翻窗入室</text>' +
+      '<text x="60" y="324" font-family="SimSun,serif" font-size="12" fill="#444">的方式，盗窃他人财物共计人民币12800元。</text>' +
+      '<text x="60" y="344" font-family="SimSun,serif" font-size="12" fill="#444">上述事实有被害人陈述、证人证言、现场勘验</text>' +
+      '<text x="60" y="364" font-family="SimSun,serif" font-size="12" fill="#444">笔录、监控录像等证据证实。</text>' +
+      '<text x="60" y="402" font-family="SimSun,serif" font-size="13" fill="#2b2b2b">三、审查意见</text>' +
+      '<text x="60" y="430" font-family="SimSun,serif" font-size="12" fill="#444">本院认为，犯罪嫌疑人张三的行为已触犯</text>' +
+      '<text x="60" y="450" font-family="SimSun,serif" font-size="12" fill="#444">《中华人民共和国刑法》第二百六十四条之规定，</text>' +
+      '<text x="60" y="470" font-family="SimSun,serif" font-size="12" fill="#444">涉嫌盗窃罪，事实清楚，证据确实、充分。</text>' +
+      '<text x="60" y="510" font-family="SimSun,serif" font-size="12" fill="#444">承办检察官：李四</text>' +
+      '<text x="60" y="532" font-family="SimSun,serif" font-size="12" fill="#444">2026年9月15日</text></svg>'
+    );
+
+    let currentType = null; // 'image' | 'pdf'
+
+    function showPreview(type, name, src) {
+      currentType = type;
+      previewName.textContent = name;
+      previewBox.innerHTML = '';
+      if (type === 'pdf') {
+        previewBox.innerHTML = '<div class="pdf-placeholder">' +
+          '<svg class="pdf-icon" viewBox="0 0 24 24" fill="#d23b3b"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6" fill="none" stroke="#fff" stroke-width="1.5"/></svg>' +
+          '<span class="pdf-name">' + name + '</span>' +
+          '<span class="pdf-hint">PDF 将优先提取文字层，扫描件自动逐页 OCR</span></div>';
+      } else {
+        const img = document.createElement('img');
+        img.src = src; img.alt = '预览';
+        previewBox.appendChild(img);
+      }
+      dropZone.style.display = 'none';
+      previewWrap.style.display = 'flex';
+      resultContent.style.display = 'none';
+      resultMeta.style.display = 'none';
+      resultBadge.style.display = 'none';
+      btnCopy.style.display = 'none';
+      resultEmpty.style.display = 'flex';
+      btnRecognize.disabled = false;
+      btnRecognizeText.textContent = '开始识别';
+    }
+
+    function showToast(msg) {
+      const t = $('toast'); t.textContent = msg; t.classList.add('show');
+      clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('show'), 2200);
+    }
+
+    function reset() {
+      previewBox.innerHTML = ''; previewWrap.style.display = 'none'; dropZone.style.display = 'flex';
+      resultContent.style.display = 'none'; resultMeta.style.display = 'none'; resultBadge.style.display = 'none';
+      btnCopy.style.display = 'none'; resultEmpty.style.display = 'flex'; currentType = null;
+    }
+
+    function finishResult(text, mode) {
+      resultEmpty.style.display = 'none';
+      resultContent.textContent = text;
+      resultContent.style.display = 'block';
+      resultMeta.textContent = '约 ' + text.length + ' 字';
+      resultMeta.style.display = 'inline';
+      if (mode === 'text') {
+        resultBadge.innerHTML = '文字层提取'; resultBadge.className = 'result-badge badge-text';
+      } else if (mode === 'ocr') {
+        resultBadge.innerHTML = '扫描件 OCR'; resultBadge.className = 'result-badge badge-ocr';
+      }
+      resultBadge.style.display = 'inline-flex';
+      btnCopy.style.display = 'inline';
+      btnRecognize.disabled = false;
+      btnRecognizeText.textContent = '开始识别';
+    }
+
+    dropZone.addEventListener('click', () => fileInput.click());
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragging'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragging'));
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault(); dropZone.classList.remove('dragging');
+      const f = e.dataTransfer.files && e.dataTransfer.files[0];
+      if (f) acceptFile(f);
+    });
+    fileInput.addEventListener('change', e => {
+      const f = e.target.files && e.target.files[0];
+      if (f) acceptFile(f);
+      e.target.value = '';
+    });
+    function acceptFile(f) {
+      const ext = (f.name.split('.').pop() || '').toLowerCase();
+      if (ext === 'pdf') { showPreview('pdf', f.name); return; }
+      if (f.type.startsWith('image/')) { const r = new FileReader(); r.onload = () => showPreview('image', f.name, r.result); r.readAsDataURL(f); }
+      else showToast('请上传图片或 PDF 文件');
+    }
+
+    btnReset.addEventListener('click', reset);
+    $('sampleImg').addEventListener('click', () => showPreview('image', '审查报告扫描件.jpg', DOC_SVG));
+    $('samplePdf').addEventListener('click', () => showPreview('pdf', '审查起诉案卷（扫描版）.pdf'));
+
+    btnRecognize.addEventListener('click', () => {
+      btnRecognize.disabled = true;
+      btnRecognizeText.innerHTML = '<span class="spinner" style="display:inline-block"></span>&nbsp;识别中…';
+      const delay = currentType === 'pdf' ? 1500 : 900;
+      setTimeout(() => {
+        if (currentType === 'pdf') finishResult(PDF_TEXT, 'ocr');
+        else finishResult(IMG_TEXT, 'ocr');
+      }, delay);
+    });
+
+    btnCopy.addEventListener('click', () => {
+      const txt = resultContent.textContent;
+      if (navigator.clipboard) navigator.clipboard.writeText(txt).then(() => showToast('已复制识别文本')).catch(() => showToast('复制失败，请手动选择'));
+      else showToast('复制失败，请手动选择');
+    });
+  </script>
+</body>
+</html>

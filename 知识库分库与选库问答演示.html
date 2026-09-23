@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>昌检智答 · 知识库分库 + AI 选库问答 · 交互演示</title>
+<style>
+  :root {
+    --cj-primary: #1e4fa3;
+    --cj-primary-light: #2f6bd4;
+    --cj-bg: #f5f7fb;
+    --cj-border: #e4e9f2;
+    --cj-text-main: #1f2d3d;
+    --cj-text-sub: #8492a6;
+    --cj-hover-bg: #eef4fd;
+    --nav-width: 84px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
+    color: var(--cj-text-main);
+    background: var(--cj-bg);
+    height: 100vh;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+  .app { display: flex; height: 100vh; }
+
+  /* ===== 左侧导航 ===== */
+  .left-nav {
+    width: var(--nav-width); flex-shrink: 0;
+    background: linear-gradient(180deg, #1a3f8f 0%, #1e4fa3 50%, #4facf7 100%);
+    display: flex; flex-direction: column; align-items: center;
+    padding: 14px 0 16px; user-select: none;
+  }
+  .emblem { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-bottom: 22px; }
+  .emblem svg { width: 34px; height: 34px; }
+  .emblem-name { font-size: 12px; letter-spacing: 2px; color: rgba(255,255,255,.85); }
+  .nav-menu { flex: 1; display: flex; flex-direction: column; gap: 8px; width: 100%; align-items: center; }
+  .nav-item {
+    width: 64px; padding: 9px 0 7px; border-radius: 10px;
+    display: flex; flex-direction: column; align-items: center; gap: 5px;
+    color: rgba(255,255,255,.72); cursor: pointer; transition: background .2s, color .2s;
+  }
+  .nav-item:hover { color: #fff; background: rgba(255,255,255,.12); }
+  .nav-item.active { background: #fff; color: var(--cj-primary); box-shadow: 0 4px 12px rgba(0,0,0,.18); }
+  .nav-item svg { width: 20px; height: 20px; }
+  .nav-label { font-size: 12px; line-height: 1; white-space: nowrap; }
+  .nav-bottom { width: 100%; display: flex; justify-content: center; }
+
+  /* ===== 主内容 ===== */
+  .content { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+  .page { display: none; height: 100%; flex-direction: column; overflow: hidden; }
+  .page.show { display: flex; }
+
+  /* 通用按钮 */
+  .btn { border: none; cursor: pointer; font-family: inherit; border-radius: 6px; font-size: 14px; padding: 8px 16px; display: inline-flex; align-items: center; gap: 6px; transition: background .15s; }
+  .btn-primary { background: var(--cj-primary); color: #fff; }
+  .btn-primary:hover { background: var(--cj-primary-light); }
+  .btn-primary:disabled { background: #a9b8d6; cursor: not-allowed; }
+  .btn-plain { background: #fff; color: var(--cj-text-main); border: 1px solid var(--cj-border); }
+  .btn-plain:hover { color: var(--cj-primary); border-color: var(--cj-primary-light); background: var(--cj-hover-bg); }
+  .btn-plain:disabled { color: #b0bccd; cursor: not-allowed; }
+  .btn-danger { background: #e5484d; color: #fff; }
+  .btn svg { width: 14px; height: 14px; }
+
+  .kb-header { flex-shrink: 0; display: flex; align-items: center; gap: 14px; padding: 16px 28px 13px; background: #fff; border-bottom: 1px solid var(--cj-border); }
+  .kb-title { flex: 1; }
+  .kb-title h2 { font-size: 18px; font-weight: 600; }
+  .kb-sub { margin-top: 4px; font-size: 12px; color: var(--cj-text-sub); }
+
+  /* 库网格 */
+  .lib-grid { flex: 1; overflow-y: auto; padding: 22px 28px; display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 16px; align-content: start; }
+  .lib-card { position: relative; background: #fff; border: 1px solid var(--cj-border); border-radius: 12px; padding: 18px 16px 16px; cursor: pointer; transition: box-shadow .2s, border-color .2s, transform .2s; }
+  .lib-card:hover { border-color: var(--cj-primary-light); box-shadow: 0 8px 24px rgba(30,79,163,.12); transform: translateY(-2px); }
+  .lib-card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .lib-icon { width: 44px; height: 44px; border-radius: 10px; background: linear-gradient(180deg,#1a3f8f,#1e4fa3,#16397a); display: flex; align-items: center; justify-content: center; color: #fff; box-shadow: 0 6px 14px rgba(30,79,163,.28); }
+  .lib-icon svg { width: 22px; height: 22px; }
+  .lib-del { color: #c0c8d6; padding: 2px; border-radius: 4px; opacity: 0; transition: opacity .15s, color .15s; }
+  .lib-card:hover .lib-del { opacity: 1; }
+  .lib-del:hover { color: #e5484d; }
+  .lib-del svg { width: 16px; height: 16px; }
+  .lib-name { font-size: 15px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lib-count { margin-top: 6px; font-size: 12px; color: var(--cj-text-sub); }
+
+  /* 库详情 */
+  .kb-detail-body { flex: 1; min-height: 0; display: flex; gap: 16px; padding: 16px 28px; }
+  .docs-panel { width: 340px; flex-shrink: 0; display: flex; flex-direction: column; background: #fff; border: 1px solid var(--cj-border); border-radius: 12px; overflow: hidden; }
+  .panel-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--cj-border); }
+  .panel-title { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; }
+  .panel-title svg { width: 16px; height: 16px; color: var(--cj-primary); }
+  .panel-count { font-size: 12px; color: var(--cj-text-sub); }
+  .docs-list { flex: 1; overflow-y: auto; padding: 8px; }
+  .doc-item { display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 8px; transition: background .15s; }
+  .doc-item:hover { background: var(--cj-hover-bg); }
+  .doc-icon { color: var(--cj-primary); flex-shrink: 0; }
+  .doc-icon svg { width: 18px; height: 18px; }
+  .doc-meta { flex: 1; min-width: 0; }
+  .doc-name { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .doc-sub { margin-top: 2px; font-size: 12px; color: var(--cj-text-sub); }
+  .doc-del { color: var(--cj-text-sub); cursor: pointer; flex-shrink: 0; padding: 2px; }
+  .doc-del:hover { color: #e5484d; }
+  .doc-del svg { width: 15px; height: 15px; }
+  .empty-mini { text-align: center; color: var(--cj-text-sub); padding: 30px 16px; font-size: 13px; }
+
+  /* 检索面板 */
+  .search-panel { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+  .search-box { flex-shrink: 0; background: #fff; border: 1px solid var(--cj-border); border-radius: 12px; padding: 12px 14px; box-shadow: 0 2px 10px rgba(31,45,61,.04); }
+  .search-textarea { width: 100%; border: none; outline: none; resize: none; font-size: 14px; line-height: 1.7; font-family: inherit; color: var(--cj-text-main); background: transparent; min-height: 52px; }
+  .search-actions { display: flex; justify-content: flex-end; margin-top: 8px; }
+  .search-empty { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--cj-text-sub); font-size: 13px; }
+  .search-results { flex: 1; overflow-y: auto; margin-top: 14px; }
+  .refs-head { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+  .ref-item { background: #fff; border: 1px solid var(--cj-border); border-radius: 10px; padding: 12px 14px; margin-bottom: 8px; }
+  .ref-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .ref-idx { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 5px; background: var(--cj-primary); color: #fff; font-size: 11px; font-weight: 600; }
+  .ref-src { font-size: 12px; color: var(--cj-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 220px; }
+  .ref-score { margin-left: auto; font-size: 11px; color: var(--cj-text-sub); }
+  .ref-content { font-size: 13px; line-height: 1.8; color: #37475a; white-space: pre-wrap; word-break: break-word; }
+  .ref-content mark { background: #fff3c4; padding: 0 1px; border-radius: 2px; }
+  .ref-none { padding: 24px; text-align: center; color: var(--cj-text-sub); font-size: 13px; background: #fff; border: 1px dashed var(--cj-border); border-radius: 10px; }
+
+  /* ===== AI 对话页 ===== */
+  .chat-view { height: 100%; display: flex; flex-direction: column; }
+  .chat-center { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32px 24px 12vh; }
+  .welcome-badge { width: 52px; height: 52px; border-radius: 14px; background: linear-gradient(180deg,#1a3f8f,#1e4fa3,#16397a); display: flex; align-items: center; justify-content: center; color: #fff; margin-bottom: 18px; box-shadow: 0 8px 20px rgba(30,79,163,.35); }
+  .welcome-badge svg { width: 26px; height: 26px; }
+  .welcome-title { font-size: 30px; font-weight: 600; letter-spacing: 1px; }
+  .welcome-sub { margin-top: 10px; font-size: 24px; font-weight: 500; color: var(--cj-primary); }
+  .welcome-desc { margin-top: 16px; max-width: 560px; font-size: 13px; line-height: 1.9; color: var(--cj-text-sub); text-align: center; }
+  .chat-input { width: 100%; max-width: 860px; margin-top: 36px; }
+  .input-box { background: #fff; border: 1px solid var(--cj-border); border-radius: 14px; padding: 10px 12px 8px; box-shadow: 0 4px 16px rgba(31,45,61,.06); }
+  .input-textarea { width: 100%; border: none; outline: none; resize: none; font-size: 14px; line-height: 1.7; font-family: inherit; color: var(--cj-text-main); background: transparent; min-height: 54px; }
+  .input-actions { display: flex; align-items: center; justify-content: space-between; margin-top: 6px; }
+  .input-left { display: flex; align-items: center; gap: 8px; }
+  .attach-btn { color: var(--cj-text-sub); cursor: pointer; padding: 4px; border-radius: 6px; }
+  .attach-btn:hover { color: var(--cj-primary); background: var(--cj-hover-bg); }
+  .attach-btn svg { width: 18px; height: 18px; }
+  .lib-select { position: relative; }
+  .lib-select select { appearance: none; border: 1px solid var(--cj-border); border-radius: 6px; padding: 5px 26px 5px 10px; font-size: 13px; color: var(--cj-text-main); background: #fff; cursor: pointer; max-width: 180px; font-family: inherit; }
+  .lib-select::after { content: '▾'; position: absolute; right: 8px; top: 50%; transform: translateY(-50%); font-size: 11px; color: var(--cj-text-sub); pointer-events: none; }
+  .input-hint { font-size: 12px; color: #b0bccd; }
+  .disclaimer { max-width: 860px; margin: 8px auto 0; text-align: center; font-size: 12px; color: #b0bccd; }
+
+  /* 消息流 */
+  .msg-list { flex: 1; overflow-y: auto; padding: 24px; max-width: 860px; margin: 0 auto; width: 100%; display: flex; flex-direction: column; gap: 20px; }
+  .msg-row { display: flex; gap: 10px; align-items: flex-start; }
+  .msg-row.user { flex-direction: row-reverse; }
+  .avatar { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; flex-shrink: 0; }
+  .avatar.ai { background: linear-gradient(180deg,#1a3f8f,#1e4fa3); }
+  .avatar.user { background: #6b7a90; }
+  .avatar svg { width: 18px; height: 18px; }
+  .bubble { max-width: 78%; padding: 12px 14px; border-radius: 12px; font-size: 14px; line-height: 1.8; white-space: pre-wrap; word-break: break-word; }
+  .bubble.ai { background: #fff; border: 1px solid var(--cj-border); border-top-left-radius: 4px; }
+  .bubble.user { background: var(--cj-primary); color: #fff; border-top-right-radius: 4px; }
+  .kb-tag { display: inline-flex; align-items: center; gap: 4px; background: var(--cj-hover-bg); color: var(--cj-primary); border: 1px solid #cfe0ff; border-radius: 4px; padding: 1px 8px; font-size: 12px; margin-bottom: 6px; }
+  .cursor { display: inline-block; width: 2px; height: 1em; margin-left: 2px; vertical-align: text-bottom; background: var(--cj-primary); animation: blink .9s steps(1) infinite; }
+  @keyframes blink { 0%,49% { opacity: 1; } 50%,100% { opacity: 0; } }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+  /* 弹窗 */
+  .modal-mask { position: fixed; inset: 0; background: rgba(31,45,61,.4); display: none; align-items: center; justify-content: center; z-index: 99; }
+  .modal-mask.show { display: flex; }
+  .modal { background: #fff; border-radius: 12px; padding: 22px; width: 360px; box-shadow: 0 12px 40px rgba(0,0,0,.2); }
+  .modal h3 { font-size: 16px; margin-bottom: 14px; }
+  .modal input { width: 100%; border: 1px solid var(--cj-border); border-radius: 6px; padding: 8px 12px; font-size: 14px; outline: none; font-family: inherit; }
+  .modal input:focus { border-color: var(--cj-primary-light); }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+
+  .toast { position: fixed; top: 52px; left: 50%; transform: translateX(-50%); background: #fff; border: 1px solid var(--cj-border); box-shadow: 0 6px 20px rgba(31,45,61,.12); border-radius: 8px; padding: 9px 18px; font-size: 13px; z-index: 100; animation: fadeIn .2s ease; }
+  .toast.ok { color: #1f9d55; }
+  .toast.err { color: #e5484d; }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- 左侧导航 -->
+  <aside class="left-nav">
+    <div class="emblem">
+      <svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="15" fill="none" stroke="#fff" stroke-width="1.2" opacity=".9"/><path d="M16 5l8.5 3.2v7.3c0 5.2-3.6 9.5-8.5 11.5-4.9-2-8.5-6.3-8.5-11.5V8.2L16 5z" fill="rgba(255,255,255,.12)" stroke="#fff" stroke-width="1.3"/><path d="M12 16.5l2.8 2.8 5.2-5.8" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span class="emblem-name">昌检智答</span>
+    </div>
+    <nav class="nav-menu">
+      <div class="nav-item active" data-page="chat">
+        <svg viewBox="0 0 1024 1024" fill="currentColor"><path d="M512 64C264.6 64 64 264.6 64 512s200.6 448 448 448 448-200.6 448-448S759.4 64 512 64zm-64 736c-8.8 0-16-7.2-16-16v-96c0-8.8 7.2-16 16-16h64c8.8 0 16 7.2 16 16v96c0 8.8-7.2 16-16 16h-64zm80-192c-8.8 0-16-7.2-16-16V444c0-8.8 7.2-16 16-16h64c8.8 0 16 7.2 16 16v148c0 8.8-7.2 16-16 16h-64z"/></svg>
+        <span class="nav-label">AI对话</span>
+      </div>
+      <div class="nav-item" data-page="agents">
+        <svg viewBox="0 0 1024 1024" fill="currentColor"><path d="M512 64L128 256v512l384 192 384-192V256L512 64zm0 96l160 80-160 80-160-80 160-80zm256 486.7L512 832 256 646.7V416l256 128 256-128v230.7z"/></svg>
+        <span class="nav-label">智能体</span>
+      </div>
+      <div class="nav-item" data-page="kb">
+        <svg viewBox="0 0 1024 1024" fill="currentColor"><path d="M832 64H296c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h496v688c0 4.4 3.6 8 8 8h56c4.4 0 8-3.6 8-8V96c0-17.7-14.3-32-32-32z"/><path d="M704 192H192c-17.7 0-32 14.3-32 32v530.7c0 8.5 3.4 16.6 9.4 22.6l173.3 173.3c2.2 2.2 4.7 4 7.4 5.5l1.7 0.9c9.6 4.5 20.8 2.7 28.2-4.7L704 714V224c0-17.7-14.3-32-32-32z"/></svg>
+        <span class="nav-label">知识库</span>
+      </div>
+      <div class="nav-item" data-page="micro">
+        <svg viewBox="0 0 1024 1024" fill="currentColor"><path d="M512 96c-35.3 0-64 28.7-64 64v320c0 35.3 28.7 64 64 64s64-28.7 64-64V160c0-35.3-28.7-64-64-64zm0 608c-141.4 0-256-114.6-256-256 0-17.7 14.3-32 32-32s32 14.3 32 32c0 105.9 86.1 192 192 192s192-86.1 192-192c0-17.7 14.3-32 32-32s32 14.3 32 32c0 141.4-114.6 256-256 256zm0-128c-70.7 0-128-57.3-128-128V256c0-70.7 57.3-128 128-128s128 57.3 128 128v192c0 70.7-57.3 128-128 128z"/></svg>
+        <span class="nav-label">微课堂</span>
+      </div>
+      <div class="nav-item" data-page="ocr">
+        <svg viewBox="0 0 1024 1024" fill="currentColor"><path d="M864 320H608V192c0-17.7-14.3-32-32-32H320c-17.7 0-32 14.3-32 32v128H160c-17.7 0-32 14.3-32 32v512c0 17.7 14.3 32 32 32h704c17.7 0 32-14.3 32-32V352c0-17.7-14.3-32-32-32zM352 224h192v96H352v-96z"/></svg>
+        <span class="nav-label">OCR应用</span>
+      </div>
+    </nav>
+    <div class="nav-bottom">
+      <div class="nav-item" data-page="sys">
+        <svg viewBox="0 0 1024 1024" fill="currentColor"><path d="M512 64C264.6 64 64 264.6 64 512s200.6 448 448 448 448-200.6 448-448S759.4 64 512 64zm192 472c0 4.4-3.6 8-8 8H544v152c0 4.4-3.6 8-8 8h-48c-4.4 0-8-3.6-8-8V544H328c-4.4 0-8-3.6-8-8v-48c0-4.4 3.6-8 8-8h152V328c0-4.4 3.6-8 8-8h48c4.4 0 8 3.6 8 8v152h152c4.4 0 8 3.6 8 8v48z"/></svg>
+        <span class="nav-label">系统管理</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- 主内容 -->
+  <main class="content">
+    <!-- AI 对话页 -->
+    <div class="page show" id="page-chat">
+      <div class="chat-view" id="chatView">
+        <div class="chat-center" id="chatWelcome">
+          <div class="welcome-badge"><svg viewBox="0 0 1024 1024" fill="currentColor"><path d="M512 64C264.6 64 64 264.6 64 512s200.6 448 448 448 448-200.6 448-448S759.4 64 512 64zm192 472c0 4.4-3.6 8-8 8H544v152c0 4.4-3.6 8-8 8h-48c-4.4 0-8-3.6-8-8V544H328c-4.4 0-8-3.6-8-8v-48c0-4.4 3.6-8 8-8h152V328c0-4.4 3.6-8 8-8h48c4.4 0 8 3.6 8 8v152h152c4.4 0 8 3.6 8 8v48z"/></svg></div>
+          <div class="welcome-title">你好</div>
+          <div class="welcome-sub">我是「昌检智答」AI助手</div>
+          <p class="welcome-desc">面向检察办案全流程提供智能辅助。可在下方选择知识库进行基于部门知识的精准问答，也可以不选择直接对话。</p>
+          <div class="chat-input">
+            <div class="input-box">
+              <textarea id="chatQuery" class="input-textarea" rows="2" placeholder="请输入问题，Enter 发送；可在左下角选择知识库进行 RAG 问答"></textarea>
+              <div class="input-actions">
+                <div class="input-left">
+                  <span class="attach-btn" title="上传文档"><svg viewBox="0 0 1024 1024" fill="currentColor"><path d="M909.6 854.5L649.9 594.8C690.2 541.7 716 475.7 716 404c0-162.4-132-294-294-294s-294 131.6-294 294 132 294 294 294c71.7 0 137.7-25.8 190.8-68.2l259.7 259.6a8 8 0 0 0 11.3 0l43.2-43.2a8 8 0 0 0 0-11.3L909.6 854.5zM422 646c-133.9 0-242-108.1-242-242s108.1-242 242-242 242 108.1 242 242-108.1 242-242 242z"/></svg></span>
+                  <span class="lib-select">
+                    <select id="libSelect">
+                      <option value="">知识库（可选）</option>
+                    </select>
+                  </span>
+                  <span class="input-hint">选择知识库 = RAG 问答</span>
+                </div>
+                <button class="btn btn-primary" id="btnChatSend">发送</button>
+              </div>
+            </div>
+            <p class="disclaimer">内容由 AI 生成，仅供参考，请以法律法规及办案规范为准</p>
+          </div>
+        </div>
+        <div class="msg-list" id="msgList" style="display:none"></div>
+        <div class="chat-input" id="chatInputBottom" style="display:none; padding: 8px 24px 12px; max-width: 900px; margin: 0 auto; width: 100%;">
+          <div class="input-box">
+            <textarea id="chatQuery2" class="input-textarea" rows="2" placeholder="请输入问题，Enter 发送"></textarea>
+            <div class="input-actions">
+              <div class="input-left">
+                <span class="lib-select">
+                  <select id="libSelect2">
+                    <option value="">知识库（可选）</option>
+                  </select>
+                </span>
+              </div>
+              <button class="btn btn-primary" id="btnChatSend2">发送</button>
+            </div>
+          </div>
+          <p class="disclaimer">内容由 AI 生成，仅供参考</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 知识库页 -->
+    <div class="page" id="page-kb">
+      <div id="kbListView" style="display:flex; flex-direction:column; height:100%;">
+        <header class="kb-header">
+          <div class="kb-title">
+            <h2>知识库</h2>
+            <p class="kb-sub">按部门分类管理知识库，导入法律法规、司法解释、典型案例与内部规范</p>
+          </div>
+          <button class="btn btn-primary" id="btnNewLib">新建知识库</button>
+        </header>
+        <div class="lib-grid" id="libGrid"></div>
+      </div>
+
+      <div id="kbDetailView" style="display:none; flex-direction:column; height:100%;">
+        <header class="kb-header">
+          <button class="btn btn-plain" id="btnBack">返回</button>
+          <div class="kb-title">
+            <h2 id="detailLibName"></h2>
+            <p class="kb-sub">管理该知识库内的文档，支持关键词检索</p>
+          </div>
+          <button class="btn btn-primary" id="btnUpload">上传文档</button>
+          <input type="file" id="fileInput" multiple accept=".txt,.md,.pdf,.docx,.doc,.wps,.xlsx,.xls" style="display:none" />
+        </header>
+        <div class="kb-detail-body">
+          <aside class="docs-panel">
+            <div class="panel-head">
+              <span class="panel-title">📄 文档列表</span>
+              <span class="panel-count" id="detailDocCount"></span>
+            </div>
+            <div class="docs-list" id="docsList"></div>
+          </aside>
+          <section class="search-panel">
+            <div class="search-box">
+              <textarea id="searchQuery" class="search-textarea" rows="2" placeholder="输入关键词检索该知识库，Enter 检索"></textarea>
+              <div class="search-actions">
+                <button class="btn btn-primary" id="btnSearch">检索</button>
+              </div>
+            </div>
+            <div class="search-results" id="searchResults">
+              <div class="search-empty">输入关键词，检索知识库内容</div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- 新建知识库弹窗 -->
+<div class="modal-mask" id="newLibModal">
+  <div class="modal">
+    <h3>新建知识库</h3>
+    <input id="newLibName" placeholder="请输入知识库名称" />
+    <div class="modal-actions">
+      <button class="btn btn-plain" id="btnModalCancel">取消</button>
+      <button class="btn btn-primary" id="btnModalOk">创建</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+
+  // ===== Mock 数据：12 个部门库，部分预置文档 =====
+  const DEFAULT_LIBS = [
+    { name: '第一检察部', docs: [
+      { filename: '刑法条文节选.txt', chars: 3240, chunks: 7, snippets: [
+        '第二百六十四条　盗窃公私财物，数额较大的，或者多次盗窃、入户盗窃、携带凶器盗窃、扒窃的，处三年以下有期徒刑、拘役或者管制，并处或者单处罚金。',
+        '第二百六十六条　诈骗公私财物，数额较大的，处三年以下有期徒刑、拘役或者管制，并处或者单处罚金；数额巨大或者有其他严重情节的，处三年以上十年以下有期徒刑，并处罚金。'
+      ]},
+      { filename: '常见罪名办案指引.docx', chars: 1860, chunks: 4, snippets: [
+        '故意伤害他人身体的，处三年以下有期徒刑、拘役或者管制；致人重伤的，处三年以上十年以下有期徒刑。'
+      ]}
+    ]},
+    { name: '第二检察部', docs: [
+      { filename: '重大犯罪条文.txt', chars: 1420, chunks: 3, snippets: [
+        '第二百三十二条　故意杀人的，处死刑、无期徒刑或者十年以上有期徒刑；情节较轻的，处三年以上十年以下有期徒刑。',
+        '第二百六十三条　以暴力、胁迫或者其他方法抢劫公私财物的，处三年以上十年以下有期徒刑，并处罚金。'
+      ]}
+    ]},
+    { name: '第三检察部', docs: [
+      { filename: '职务犯罪司法解释.md', chars: 2210, chunks: 5, snippets: [
+        '国家工作人员利用职务上的便利，侵吞、窃取、骗取或者以其他手段非法占有公共财物的，是贪污罪。受贿数额在三万元以上不满二十万元的，应当认定为数额较大。'
+      ]}
+    ]},
+    { name: '第四检察部', docs: [] },
+    { name: '第五检察部', docs: [] },
+    { name: '第六检察部', docs: [] },
+    { name: '第七检察部', docs: [] },
+    { name: '第八检察部（法律政策研究室）', docs: [] },
+    { name: '检务督察部', docs: [] },
+    { name: '政治部', docs: [] },
+    { name: '办公室', docs: [] },
+    { name: '数字办', docs: [] },
+  ];
+  let libs = DEFAULT_LIBS.map((l, i) => ({ id: 'l' + (i + 1), name: l.name, docs: l.docs.map(d => ({ ...d, id: l.name + '-' + d.filename })) }));
+
+  let curLib = null;      // 当前库
+  let typingTimer = null;
+
+  // ===== 导航切换 =====
+  document.querySelectorAll('.nav-item').forEach(item => {
+    item.onclick = () => {
+      const p = item.dataset.page;
+      if (p === 'chat') switchPage('chat');
+      else if (p === 'kb') switchPage('kb');
+      else toast('「' + item.querySelector('.nav-label').textContent + '」模块开发中', 'err');
+    };
+  });
+  function switchPage(p) {
+    document.querySelectorAll('.nav-item').forEach(i => i.classList.toggle('active', i.dataset.page === p));
+    $('page-chat').classList.toggle('show', p === 'chat');
+    $('page-kb').classList.toggle('show', p === 'kb');
+    if (p === 'kb') { curLib = null; $('kbListView').style.display = 'flex'; $('kbDetailView').style.display = 'none'; renderLibs(); }
+  }
+
+  // ===== 知识库：列表 =====
+  function renderLibs() {
+    const g = $('libGrid');
+    g.innerHTML = libs.map(l => `
+      <div class="lib-card" data-id="${l.id}">
+        <div class="lib-card-head">
+          <span class="lib-icon"><svg viewBox="0 0 1024 1024" fill="currentColor"><path d="M928 444H820V252H252v192h-108a32 32 0 0 0-32 32v384a32 32 0 0 0 32 32h768a32 32 0 0 0 32-32V476a32 32 0 0 0-16-32zM512 572c-17.7 0-32-14.3-32-32s14.3-32 32-32 32 14.3 32 32-14.3 32-32 32z"/></svg></span>
+          <span class="lib-del" data-del="${l.id}"><svg viewBox="0 0 1024 1024" fill="currentColor"><path d="M360 184h-8c4.4 0 8-3.6 8-8v8h304v-8c0 4.4 3.6 8 8 8h-8v72h72v-80c0-35.3-28.7-64-64-64H352c-35.3 0-64 28.7-64 64v80h72v-72zm504 72H160c-17.7 0-32 14.3-32 32v32c0 4.4 3.6 8 8 8h60.4l24.7 523c1.6 34.1 29.8 61 63.9 61h454c34.2 0 62.3-26.8 63.9-61l24.7-523H888c4.4 0 8-3.6 8-8v-32c0-17.7-14.3-32-32-32z"/></svg></span>
+        </div>
+        <div class="lib-name">${l.name}</div>
+        <div class="lib-count">${l.docs.length} 篇文档</div>
+      </div>`).join('');
+    g.querySelectorAll('.lib-card').forEach(c => c.onclick = (e) => {
+      if (e.target.closest('.lib-del')) return;
+      enterLib(c.dataset.id);
+    });
+    g.querySelectorAll('.lib-del').forEach(d => d.onclick = () => delLib(d.dataset.del));
+  }
+
+  function enterLib(id) {
+    curLib = libs.find(l => l.id === id);
+    $('kbListView').style.display = 'none';
+    $('kbDetailView').style.display = 'flex';
+    $('detailLibName').textContent = curLib.name;
+    renderDocs();
+    $('searchQuery').value = '';
+    $('searchResults').innerHTML = '<div class="search-empty">输入关键词，检索知识库内容</div>';
+  }
+
+  function renderDocs() {
+    $('detailDocCount').textContent = curLib.docs.length + ' 篇';
+    const list = $('docsList');
+    if (!curLib.docs.length) {
+      list.innerHTML = '<div class="empty-mini">暂无文档，点击右上角上传</div>';
+      return;
+    }
+    list.innerHTML = curLib.docs.map(d => `
+      <div class="doc-item">
+        <span class="doc-icon"><svg viewBox="0 0 1024 1024" fill="currentColor"><path d="M832 64H296c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h496v688c0 4.4 3.6 8 8 8h56c4.4 0 8-3.6 8-8V96c0-17.7-14.3-32-32-32z"/><path d="M704 192H192c-17.7 0-32 14.3-32 32v530.7c0 8.5 3.4 16.6 9.4 22.6l173.3 173.3c2.2 2.2 4.7 4 7.4 5.5l1.7 0.9c9.6 4.5 20.8 2.7 28.2-4.7L704 714V224c0-17.7-14.3-32-32-32z"/></svg></span>
+        <div class="doc-meta">
+          <div class="doc-name" title="${d.filename}">${d.filename}</div>
+          <div class="doc-sub">${d.chars} 字 · ${d.chunks} 块</div>
+        </div>
+        <span class="doc-del" data-del="${d.id}"><svg viewBox="0 0 1024 1024" fill="currentColor"><path d="M360 184h-8c4.4 0 8-3.6 8-8v8h304v-8c0 4.4 3.6 8 8 8h-8v72h72v-80c0-35.3-28.7-64-64-64H352c-35.3 0-64 28.7-64 64v80h72v-72zm504 72H160c-17.7 0-32 14.3-32 32v32c0 4.4 3.6 8 8 8h60.4l24.7 523c1.6 34.1 29.8 61 63.9 61h454c34.2 0 62.3-26.8 63.9-61l24.7-523H888c4.4 0 8-3.6 8-8v-32c0-17.7-14.3-32-32-32z"/></svg></span>
+      </div>`).join('');
+    list.querySelectorAll('.doc-del').forEach(d => d.onclick = () => {
+      curLib.docs = curLib.docs.filter(x => x.id !== d.dataset.del);
+      renderDocs(); renderLibs(); toast('已删除', 'ok');
+    });
+  }
+
+  function delLib(id) {
+    const lib = libs.find(l => l.id === id);
+    if (confirm(`确定删除知识库「${lib.name}」吗？库内 ${lib.docs.length} 篇文档将被一并删除。`)) {
+      libs = libs.filter(l => l.id !== id);
+      renderLibs(); toast('已删除', 'ok');
+    }
+  }
+
+  // 新建库
+  $('btnNewLib').onclick = () => { $('newLibModal').classList.add('show'); $('newLibName').value = ''; $('newLibName').focus(); };
+  $('btnModalCancel').onclick = () => $('newLibModal').classList.remove('show');
+  $('btnModalOk').onclick = () => {
+    const name = $('newLibName').value.trim();
+    if (!name) { toast('名称不能为空', 'err'); return; }
+    if (libs.some(l => l.name === name)) { toast('已存在同名知识库', 'err'); return; }
+    libs.push({ id: 'l' + Date.now(), name, docs: [] });
+    $('newLibModal').classList.remove('show');
+    renderLibs(); toast('已创建「' + name + '」', 'ok');
+  };
+  $('newLibName').addEventListener('keydown', e => { if (e.key === 'Enter') $('btnModalOk').click(); });
+
+  // 上传文档（mock）
+  $('btnUpload').onclick = () => $('fileInput').click();
+  $('fileInput').onchange = (e) => {
+    const files = e.target.files;
+    if (!files.length) return;
+    for (const f of files) curLib.docs.unshift({ id: curLib.name + '-' + f.name, filename: f.name, chars: 500 + Math.floor(Math.random()*2500), chunks: 2 + Math.floor(Math.random()*7), snippets: [] });
+    renderDocs(); renderLibs(); toast('已导入 ' + files.length + ' 个文档', 'ok');
+    e.target.value = '';
+  };
+
+  // 检索（当前库内关键词匹配）
+  function tokenize(t) {
+    const seg = t.replace(/[^\u4e00-\u9fffA-Za-z0-9]/g, ' ').split(/\s+/).filter(Boolean);
+    const out = new Set(seg);
+    for (const w of seg) if (w.length >= 2) for (let i = 0; i + 2 <= w.length; i++) out.add(w.slice(i, i + 2));
+    return [...out];
+  }
+  function doSearch() {
+    const q = $('searchQuery').value.trim();
+    if (!q || !curLib) return;
+    const toks = tokenize(q);
+    const hits = [];
+    for (const doc of curLib.docs) for (const snip of doc.snippets || []) {
+      let score = 0, matched = new Set();
+      for (const t of toks) if (snip.includes(t)) { score += t.length >= 2 ? 2 : 1; matched.add(t); }
+      if (score > 0) hits.push({ doc, snip, score, matched });
+    }
+    hits.sort((a, b) => b.score - a.score);
+    const r = $('searchResults');
+    if (!hits.length) { r.innerHTML = '<div class="ref-none">该知识库中未检索到相关内容，可更换关键词</div>'; return; }
+    r.innerHTML = `<div class="refs-head">命中片段（${hits.length}）</div>` + hits.slice(0,4).map((h, i) => {
+      let html = h.snip.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      for (const t of [...h.matched].sort((a,b)=>b.length-a.length)) html = html.replace(new RegExp(t.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'g'),'<mark>$&</mark>');
+      return `<div class="ref-item"><div class="ref-meta"><span class="ref-idx">#${i+1}</span><span class="ref-src">${h.doc.filename}</span><span class="ref-score">相关度 ${h.score.toFixed(1)}</span></div><div class="ref-content">${html}</div></div>`;
+    }).join('');
+  }
+  $('btnSearch').onclick = doSearch;
+  $('searchQuery').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); doSearch(); } });
+  $('btnBack').onclick = () => { curLib = null; $('kbListView').style.display = 'flex'; $('kbDetailView').style.display = 'none'; };
+
+  // ===== AI 对话：知识库选择器 =====
+  function fillLibSelects() {
+    const opts = libs.map(l => `<option value="${l.id}">${l.name}</option>`).join('');
+    $('libSelect').innerHTML = '<option value="">知识库（可选）</option>' + opts;
+    $('libSelect2').innerHTML = '<option value="">知识库（可选）</option>' + opts;
+  }
+
+  // 选库问答 mock 回答
+  function pickAnswer(q, libId) {
+    const lib = libId ? libs.find(l => l.id === libId) : null;
+    const kbPrefix = lib ? `基于「${lib.name}」知识库检索` : '';
+    if (/盗窃/.test(q)) return `${kbPrefix ? kbPrefix + '：' : '根据'}盗窃公私财物数额较大的，处三年以下有期徒刑、拘役或者管制，并处或者单处罚金；数额巨大或有其他严重情节的，处三年以上十年以下有期徒刑。多次盗窃、入户盗窃、携带凶器盗窃、扒窃的，不以数额较大为入罪条件。\n\n（内容由 AI 生成，仅供参考）`;
+    if (/诈骗/.test(q)) return `${kbPrefix ? kbPrefix + '：' : '根据'}诈骗公私财物数额较大的，处三年以下有期徒刑、拘役或者管制，并处或者单处罚金；数额巨大或者有其他严重情节的，处三年以上十年以下有期徒刑，并处罚金。\n\n（内容由 AI 生成，仅供参考）`;
+    if (/杀人/.test(q)) return `${kbPrefix ? kbPrefix + '：' : '根据'}故意杀人的，处死刑、无期徒刑或者十年以上有期徒刑；情节较轻的，处三年以上十年以下有期徒刑。\n\n（内容由 AI 生成，仅供参考）`;
+    if (/贪污|受贿/.test(q)) return `${kbPrefix ? kbPrefix + '：' : '根据'}贪污罪指国家工作人员利用职务便利非法占有公共财物；受贿数额三万元以上不满二十万元的，认定为数额较大。\n\n（内容由 AI 生成，仅供参考）`;
+    if (lib) return `已从「${lib.name}」知识库检索，但未命中与「${q}」直接相关的内容，建议更换关键词或补充该库文档。\n\n（内容由 AI 生成，仅供参考）`;
+    return `已收到您的问题「${q}」。这是普通对话模式（未指定知识库）。\n\n（内容由 AI 生成，仅供参考）`;
+  }
+
+  function libName(id) { const l = libs.find(x => x.id === id); return l ? l.name : ''; }
+
+  function sendChat(ta, sel) {
+    const q = ta.value.trim();
+    if (!q) return;
+    const libId = sel.value;
+    const lib = libId ? libs.find(l => l.id === libId) : null;
+    // 切换到消息视图
+    $('chatWelcome').style.display = 'none';
+    $('msgList').style.display = 'flex';
+    $('chatInputBottom').style.display = 'block';
+    const list = $('msgList');
+    // 用户消息
+    const urow = document.createElement('div');
+    urow.className = 'msg-row user';
+    urow.innerHTML = `<div class="avatar user"><svg viewBox="0 0 1024 1024" fill="currentColor"><path d="M512 512c-123.7 0-224-100.3-224-224S388.3 64 512 64s224 100.3 224 224-100.3 224-224 224zm0 64c158.5 0 320 79.5 320 192v128c0 17.7-14.3 32-32 32H224c-17.7 0-32-14.3-32-32V768c0-112.5 161.5-192 320-192z"/></svg></div><div class="bubble user">${q.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</div>`;
+    list.appendChild(urow);
+    // AI 消息
+    const arow = document.createElement('div');
+    arow.className = 'msg-row';
+    const tag = lib ? `<span class="kb-tag">📚 ${lib.name}</span>` : '';
+    arow.innerHTML = `<div class="avatar ai"><svg viewBox="0 0 1024 1024" fill="currentColor"><path d="M512 96C282.6 96 96 282.6 96 512s186.6 416 416 416 416-186.6 416-416S741.4 96 512 96zm0 688a48 48 0 1 1 0-96 48 48 0 0 1 0 96zm60-240c0 8.8-7.2 16-16 16h-88c-8.8 0-16-7.2-16-16V440c0-8.8 7.2-16 16-16h88c8.8 0 16 7.2 16 16v104z"/></svg></div><div class="bubble ai">${tag}<div class="ans"></div><span class="cursor"></span></div>`;
+    list.appendChild(arow);
+    const ans = arow.querySelector('.ans');
+    const text = pickAnswer(q, libId);
+    let i = 0;
+    clearInterval(typingTimer);
+    typingTimer = setInterval(() => {
+      if (i < text.length) { ans.textContent += text[i++]; list.scrollTop = list.scrollHeight; }
+      else { clearInterval(typingTimer); arow.querySelector('.cursor').remove(); }
+    }, 16);
+    ta.value = '';
+    list.scrollTop = list.scrollHeight;
+  }
+  $('btnChatSend').onclick = () => sendChat($('chatQuery'), $('libSelect'));
+  $('btnChatSend2').onclick = () => sendChat($('chatQuery2'), $('libSelect2'));
+  [$('chatQuery'), $('chatQuery2')].forEach(ta => ta.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); sendChat(ta, ta.id === 'chatQuery' ? $('libSelect') : $('libSelect2')); } }));
+
+  function toast(msg, type) {
+    const t = document.createElement('div');
+    t.className = 'toast ' + type; t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 1800);
+  }
+
+  // 初始化
+  renderLibs();
+  fillLibSelects();
+</script>
+</body>
+</html>

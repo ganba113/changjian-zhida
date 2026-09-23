@@ -1,0 +1,34 @@
+﻿=== 顶层目录 ===
+.git
+node_modules
+public
+src
+.gitignore
+index.html
+package-lock.json
+package.json
+tsconfig.json
+vite.config.ts
+=== src 目录结构 ===
+src\App.vue
+src\env.d.ts
+src\main.ts
+src\api\chat.ts
+src\assets\styles\global.css
+src\components\chat\ChatInput.vue
+src\components\chat\MessageList.vue
+src\components\chat\WelcomePanel.vue
+src\components\common\PlaceholderView.vue
+src\components\layout\ConversationList.vue
+src\components\layout\LeftNav.vue
+src\router\index.ts
+src\stores\app.ts
+src\stores\chat.ts
+src\types\index.ts
+src\views\AgentsView.vue
+src\views\ChatView.vue
+src\views\KnowledgeView.vue
+src\views\MicroClassView.vue
+src\views\OcrView.vue
+src\views\SystemView.vue
+src\views\layout\MainLayout.vue

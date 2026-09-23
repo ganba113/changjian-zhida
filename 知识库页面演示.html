@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>知识库页面 · 效果演示</title>
+<style>
+  :root {
+    --cj-primary: #1e4fa3;
+    --cj-primary-light: #2f6bd4;
+    --cj-bg: #f5f7fb;
+    --cj-border: #e4e9f2;
+    --cj-text-main: #1f2d3d;
+    --cj-text-sub: #8492a6;
+    --cj-hover-bg: #eef4fd;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
+    color: var(--cj-text-main);
+    background: var(--cj-bg);
+    height: 100vh;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+  .demo-banner {
+    background: linear-gradient(90deg, #1a3f8f, #2f6bd4);
+    color: #fff;
+    font-size: 12px;
+    padding: 6px 20px;
+    letter-spacing: 0.5px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .demo-banner b { font-weight: 600; }
+
+  .kb-view { height: calc(100vh - 30px); display: flex; flex-direction: column; }
+
+  /* 顶部 */
+  .kb-header {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px 28px 13px;
+    background: #fff;
+    border-bottom: 1px solid var(--cj-border);
+  }
+  .kb-title { flex: 1; }
+  .kb-title h2 { font-size: 18px; font-weight: 600; }
+  .kb-sub { margin-top: 4px; font-size: 12px; color: var(--cj-text-sub); }
+
+  .btn {
+    border: none; cursor: pointer; font-family: inherit;
+    border-radius: 6px; font-size: 14px; padding: 8px 16px;
+    transition: background .15s, box-shadow .15s; display: inline-flex; align-items: center; gap: 6px;
+  }
+  .btn-primary { background: var(--cj-primary); color: #fff; }
+  .btn-primary:hover { background: var(--cj-primary-light); }
+  .btn-primary:disabled { background: #a9b8d6; cursor: not-allowed; }
+  .btn-plain { background: #fff; color: var(--cj-text-main); border: 1px solid var(--cj-border); }
+  .btn-plain:hover { color: var(--cj-primary); border-color: var(--cj-primary-light); background: var(--cj-hover-bg); }
+  .btn-plain:disabled { color: #b0bccd; cursor: not-allowed; }
+  .btn-danger { background: #e5484d; color: #fff; }
+  .btn-danger:hover { background: #d2363b; }
+  .btn svg { width: 14px; height: 14px; }
+
+  /* 主体 */
+  .kb-body { flex: 1; min-height: 0; display: flex; gap: 16px; padding: 16px 28px; }
+
+  /* 左栏 */
+  .kb-docs-panel {
+    width: 300px; flex-shrink: 0; display: flex; flex-direction: column;
+    background: #fff; border: 1px solid var(--cj-border); border-radius: 12px; overflow: hidden;
+  }
+  .panel-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--cj-border); }
+  .panel-title { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; }
+  .panel-title svg { width: 16px; height: 16px; color: var(--cj-primary); }
+  .panel-count { font-size: 12px; color: var(--cj-text-sub); }
+  .docs-list { flex: 1; overflow-y: auto; padding: 8px; }
+  .doc-item { display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 8px; transition: background .15s; }
+  .doc-item:hover { background: var(--cj-hover-bg); }
+  .doc-icon { color: var(--cj-primary); flex-shrink: 0; }
+  .doc-icon svg { width: 18px; height: 18px; }
+  .doc-meta { flex: 1; min-width: 0; }
+  .doc-name { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .doc-sub { margin-top: 2px; font-size: 12px; color: var(--cj-text-sub); }
+  .doc-del { color: var(--cj-text-sub); cursor: pointer; flex-shrink: 0; padding: 2px; }
+  .doc-del:hover { color: #e5484d; }
+  .doc-del svg { width: 15px; height: 15px; }
+  .empty-docs { text-align: center; color: var(--cj-text-sub); padding: 40px 16px; font-size: 13px; }
+  .empty-docs svg { width: 56px; height: 56px; opacity: .35; margin-bottom: 8px; }
+
+  /* 右栏 */
+  .kb-main { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+  .kb-input-box { flex-shrink: 0; background: #fff; border: 1px solid var(--cj-border); border-radius: 12px; padding: 12px 14px; box-shadow: 0 2px 10px rgba(31,45,61,.04); }
+  .kb-textarea { width: 100%; border: none; outline: none; resize: none; font-size: 14px; line-height: 1.7; font-family: inherit; color: var(--cj-text-main); background: transparent; min-height: 52px; }
+  .kb-input-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+  .kb-scroll { flex: 1; overflow-y: auto; margin-top: 14px; }
+
+  .kb-empty { text-align: center; color: var(--cj-text-sub); padding: 60px 16px; }
+  .kb-empty svg { width: 90px; height: 90px; opacity: .3; margin-bottom: 10px; }
+  .kb-empty p { font-size: 13px; }
+
+  .refs-head { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+  .ref-item { background: #fff; border: 1px solid var(--cj-border); border-radius: 10px; padding: 12px 14px; margin-bottom: 8px; animation: fadeIn .25s ease; }
+  .ref-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .ref-idx { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 5px; background: var(--cj-primary); color: #fff; font-size: 11px; font-weight: 600; }
+  .ref-src { font-size: 12px; color: var(--cj-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 220px; }
+  .ref-score { margin-left: auto; font-size: 11px; color: var(--cj-text-sub); }
+  .ref-content { font-size: 13px; line-height: 1.8; white-space: pre-wrap; word-break: break-word; color: #37475a; }
+  .ref-content mark { background: #fff3c4; color: inherit; padding: 0 1px; border-radius: 2px; }
+  .ref-none { padding: 24px; text-align: center; color: var(--cj-text-sub); font-size: 13px; background: #fff; border: 1px dashed var(--cj-border); border-radius: 10px; }
+
+  .kb-answer { background: #fff; border: 1px solid var(--cj-border); border-radius: 12px; padding: 14px 16px; margin-top: 14px; animation: fadeIn .3s ease; }
+  .answer-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--cj-border); }
+  .answer-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 600; color: var(--cj-primary); }
+  .answer-badge svg { width: 15px; height: 15px; }
+  .answer-hint { font-size: 12px; color: var(--cj-text-sub); }
+  .answer-body { font-size: 14px; line-height: 1.9; white-space: pre-wrap; word-break: break-word; }
+  .cursor { display: inline-block; width: 2px; height: 1em; margin-left: 2px; vertical-align: text-bottom; background: var(--cj-primary); animation: blink .9s steps(1) infinite; }
+  @keyframes blink { 0%,49% { opacity: 1; } 50%,100% { opacity: 0; } }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+  .toast { position: fixed; top: 52px; left: 50%; transform: translateX(-50%); background: #fff; border: 1px solid var(--cj-border); box-shadow: 0 6px 20px rgba(31,45,61,.12); border-radius: 8px; padding: 9px 18px; font-size: 13px; z-index: 99; animation: fadeIn .2s ease; }
+  .toast.ok { color: #1f9d55; }
+  .toast.err { color: #e5484d; }
+</style>
+</head>
+<body>
+  <div class="demo-banner">⚙️ <b>知识库模块 · 效果演示</b>（本地 Mock 数据，模拟上传 / 检索 / 流式问答的完整交互）</div>
+
+  <div class="kb-view">
+    <header class="kb-header">
+      <div class="kb-title">
+        <h2>知识库</h2>
+        <p class="kb-sub">导入法律法规、司法解释、典型案例与内部规范，支持关键词检索与基于知识库的智能问答</p>
+      </div>
+      <button class="btn btn-primary" id="btnUpload">
+        <svg viewBox="0 0 1024 1024" fill="currentColor"><path d="M544 864V672h128L512 480 352 672h128v192H320v64h384v-64zM896 480a256 256 0 0 0-256-256h-32a288 288 0 0 0-544-8 224 224 0 0 0 0 448h96v-64h-96a160 160 0 0 1 0-320h16a224 224 0 0 1 424-16h32a192 192 0 0 1 160 192 160 160 0 0 1-160 160h-96v64h96a224 224 0 0 0 160-224z"/></svg>
+        导入文档
+      </button>
+      <input type="file" id="fileInput" multiple accept=".txt,.md,.pdf,.docx,.doc,.wps,.xlsx,.xls,.html,.log" style="display:none" />
+    </header>
+
+    <div class="kb-body">
+      <aside class="kb-docs-panel">
+        <div class="panel-head">
+          <span class="panel-title">
+            <svg viewBox="0 0 1024 1024" fill="currentColor"><path d="M928 444H820V252H252v192h-108a32 32 0 0 0-32 32v384a32 32 0 0 0 32 32h768a32 32 0 0 0 32-32V476a32 32 0 0 0-16-32zM512 572c-17.7 0-32-14.3-32-32s14.3-32 32-32 32 14.3 32 32-14.3 32-32 32z"/></svg>
+            文档库
+          </span>
+          <span class="panel-count" id="docCount">4 篇</span>
+        </div>
+        <div class="docs-list" id="docsList"></div>
+      </aside>
+
+      <section class="kb-main">
+        <div class="kb-input-box">
+          <textarea id="query" class="kb-textarea" rows="2" placeholder="请输入问题，Enter 基于知识库问答，Ctrl + Enter 仅检索片段"></textarea>
+          <div class="kb-input-actions">
+            <button class="btn btn-plain" id="btnSearch">仅检索</button>
+            <button class="btn btn-primary" id="btnAsk">知识库问答</button>
+            <button class="btn btn-danger" id="btnStop" style="display:none">停止</button>
+          </div>
+        </div>
+
+        <div class="kb-scroll" id="resultArea">
+          <div class="kb-empty" id="emptyState">
+            <svg viewBox="0 0 1024 1024" fill="currentColor"><path d="M512 64C264.6 64 64 264.6 64 512s200.6 448 448 448 448-200.6 448-448S759.4 64 512 64zm0 820c-205.4 0-372-166.6-372-372s166.6-372 372-372 372 166.6 372 372-166.6 372-372 372z"/><path d="M464 336a48 48 0 1 0 96 0 48 48 0 1 0-96 0zm72 112h-48c-4.4 0-8 3.6-8 8v272c0 4.4 3.6 8 8 8h48c4.4 0 8-3.6 8-8V456c0-4.4-3.6-8-8-8z"/></svg>
+            <p>输入问题，检索或问答知识库内容</p>
+          </div>
+          <div id="results"></div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+<script>
+  // ---- Mock 知识库文档（含可检索的片段）----
+  const KB = [
+    {
+      id: 'd1', filename: '刑法条文节选.txt', chars: 3240, chunks: 7,
+      snippets: [
+        '第二百六十四条　盗窃公私财物，数额较大的，或者多次盗窃、入户盗窃、携带凶器盗窃、扒窃的，处三年以下有期徒刑、拘役或者管制，并处或者单处罚金；数额巨大或者有其他严重情节的，处三年以上十年以下有期徒刑，并处罚金。',
+        '第二百六十六条　诈骗公私财物，数额较大的，处三年以下有期徒刑、拘役或者管制，并处或者单处罚金；数额巨大或者有其他严重情节的，处三年以上十年以下有期徒刑，并处罚金。',
+        '第二百三十二条　故意杀人的，处死刑、无期徒刑或者十年以上有期徒刑；情节较轻的，处三年以上十年以下有期徒刑。'
+      ]
+    },
+    {
+      id: 'd2', filename: '刑诉法程序规定.md', chars: 1580, chunks: 4,
+      snippets: [
+        '第一百零九条　公安机关或者人民检察院发现犯罪事实或者犯罪嫌疑人，应当按照管辖范围，立案侦查。立案是刑事诉讼的起点，应当制作立案决定书。',
+        '第八十七条　人民检察院对于公安机关提请批准逮捕的案件进行审查后，应当根据情况分别作出批准逮捕或者不批准逮捕的决定。'
+      ]
+    },
+    {
+      id: 'd3', filename: '盗窃罪类案参考.pdf', chars: 2210, chunks: 5,
+      snippets: [
+        '类案要旨：多次盗窃、入户盗窃、携带凶器盗窃、扒窃的，不以数额较大为入罪条件，直接构成盗窃罪。入户盗窃既遂与未遂的区分，以是否取得财物为标准。',
+        '量刑参考：盗窃数额在一千元以上不满三千元的，属于数额较大，一般处拘役或者管制，并处或者单处罚金；退赃退赔、取得谅解的，可从宽处理。'
+      ]
+    },
+    {
+      id: 'd4', filename: '检察工作规范.docx', chars: 1960, chunks: 4,
+      snippets: [
+        '证据审查规范：对物证、书证应当审查其来源是否合法，提取、扣押、封存程序是否符合规定；对言词证据应当审查取证主体、方式是否合法，有无刑讯逼供、诱供等情形。',
+        '审查起诉期限：人民检察院对于监察机关、公安机关移送起诉的案件，应当在一个月以内作出决定，重大、复杂的案件，可以延长十五日。'
+      ]
+    }
+  ];
+
+  const $ = (id) => document.getElementById(id);
+  let docs = KB.map(d => ({ id: d.id, filename: d.filename, chars: d.chars, chunks: d.chunks }));
+  let hasSearched = false;
+  let typingTimer = null;
+
+  // 简单关键词匹配检索（演示用）
+  function tokenize(t) {
+    // 提取中文词 + 英文数字，模拟分词
+    const seg = t.replace(/[^\u4e00-\u9fffA-Za-z0-9]/g, ' ').split(/\s+/).filter(Boolean);
+    const out = new Set(seg);
+    // 补充 2-gram 子串提升召回
+    for (const w of seg) if (w.length >= 2) for (let i = 0; i + 2 <= w.length; i++) out.add(w.slice(i, i + 2));
+    return [...out];
+  }
+  function search(q) {
+    const toks = tokenize(q);
+    const hits = [];
+    for (const doc of KB) {
+      for (const snip of doc.snippets) {
+        let score = 0, matched = new Set();
+        for (const t of toks) if (snip.includes(t)) { score += t.length >= 2 ? 2 : 1; matched.add(t); }
+        if (score > 0) hits.push({ doc, snip, score, matched });
+      }
+    }
+    hits.sort((a, b) => b.score - a.score);
+    return hits.slice(0, 4);
+  }
+  // 高亮命中词
+  function highlight(snip, matched) {
+    let html = snip.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const arr = [...matched].sort((a, b) => b.length - a.length);
+    for (const t of arr) {
+      const safe = t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      html = html.replace(new RegExp(safe, 'g'), '<mark>$&</mark>');
+    }
+    return html;
+  }
+
+  // 预置回答（流式输出）
+  function pickAnswer(q) {
+    if (/盗窃/.test(q)) return '根据知识库中的刑法条文与类案参考：盗窃公私财物数额较大的，处三年以下有期徒刑、拘役或者管制，并处或者单处罚金；数额巨大或有其他严重情节的，处三年以上十年以下有期徒刑。多次盗窃、入户盗窃、携带凶器盗窃、扒窃的，不以数额较大为入罪条件。\n\n（以上内容基于知识库片段生成，仅供参考，请以法律法规及办案规范为准。）';
+    if (/诈骗/.test(q)) return '根据知识库中的刑法条文：诈骗公私财物数额较大的，处三年以下有期徒刑、拘役或者管制，并处或者单处罚金；数额巨大或者有其他严重情节的，处三年以上十年以下有期徒刑，并处罚金。\n\n（以上内容基于知识库片段生成，仅供参考，请以法律法规及办案规范为准。）';
+    if (/故意杀人|杀人/.test(q)) return '根据知识库中的刑法条文：故意杀人的，处死刑、无期徒刑或者十年以上有期徒刑；情节较轻的，处三年以上十年以下有期徒刑。\n\n（以上内容基于知识库片段生成，仅供参考，请以法律法规及办案规范为准。）';
+    if (/立案/.test(q)) return '根据知识库中的刑诉法程序规定：公安机关或者人民检察院发现犯罪事实或者犯罪嫌疑人，应当按照管辖范围立案侦查。立案是刑事诉讼的起点，应当制作立案决定书。\n\n（以上内容基于知识库片段生成，仅供参考。）';
+    if (/逮捕/.test(q)) return '根据知识库中的刑诉法程序规定：人民检察院对公安机关提请批准逮捕的案件审查后，应当分别作出批准逮捕或者不批准逮捕的决定。\n\n（以上内容基于知识库片段生成，仅供参考。）';
+    return '知识库中未检索到与您问题直接相关的片段。您可以：① 更换更具体的关键词；② 先点击「导入文档」补充相关材料。\n\n（建议围绕「罪名 / 法条编号 / 程序阶段」等关键词提问，检索效果更佳。）';
+  }
+
+  // 渲染文档列表
+  function renderDocs() {
+    const list = $('docsList');
+    $('docCount').textContent = docs.length + ' 篇';
+    if (!docs.length) {
+      list.innerHTML = '<div class="empty-docs"><svg viewBox="0 0 1024 1024" fill="currentColor"><path d="M840.4 300H183.6c-19.7 0-30.7 20.8-18.5 35l328.4 380.8c9.4 10.9 27.5 10.9 37 0L858.9 335c12.2-14.2 1.2-35-18.5-35z"/></svg><div>暂无文档，点击右上角导入</div></div>';
+      return;
+    }
+    list.innerHTML = docs.map(d => `
+      <div class="doc-item">
+        <span class="doc-icon"><svg viewBox="0 0 1024 1024" fill="currentColor"><path d="M832 64H296c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h496v688c0 4.4 3.6 8 8 8h56c4.4 0 8-3.6 8-8V96c0-17.7-14.3-32-32-32z"/><path d="M704 192H192c-17.7 0-32 14.3-32 32v530.7c0 8.5 3.4 16.6 9.4 22.6l173.3 173.3c2.2 2.2 4.7 4 7.4 5.5l1.7 0.9c9.6 4.5 20.8 2.7 28.2-4.7L704 714V224c0-17.7-14.3-32-32-32z"/></svg></span>
+        <div class="doc-meta">
+          <div class="doc-name" title="${d.filename}">${d.filename}</div>
+          <div class="doc-sub">${d.chars} 字 · ${d.chunks} 块</div>
+        </div>
+        <span class="doc-del" data-id="${d.id}" title="删除"><svg viewBox="0 0 1024 1024" fill="currentColor"><path d="M360 184h-8c4.4 0 8-3.6 8-8v8h304v-8c0 4.4 3.6 8 8 8h-8v72h72v-80c0-35.3-28.7-64-64-64H352c-35.3 0-64 28.7-64 64v80h72v-72zm504 72H160c-17.7 0-32 14.3-32 32v32c0 4.4 3.6 8 8 8h60.4l24.7 523c1.6 34.1 29.8 61 63.9 61h454c34.2 0 62.3-26.8 63.9-61l24.7-523H888c4.4 0 8-3.6 8-8v-32c0-17.7-14.3-32-32-32z"/></svg></span>
+      </div>`).join('');
+    list.querySelectorAll('.doc-del').forEach(el => el.onclick = () => {
+      docs = docs.filter(d => d.id !== el.dataset.id);
+      renderDocs();
+      toast('已删除', 'ok');
+    });
+  }
+
+  function toast(msg, type) {
+    const t = document.createElement('div');
+    t.className = 'toast ' + type;
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 1800);
+  }
+
+  function renderEmpty() {
+    $('emptyState').style.display = 'block';
+    $('results').innerHTML = '';
+  }
+  function renderResults(hits) {
+    $('emptyState').style.display = 'none';
+    let html = '';
+    if (hits.length) {
+      html += `<div class="refs-head">引用片段（${hits.length}）</div>`;
+      hits.forEach((h, i) => {
+        html += `<div class="ref-item">
+          <div class="ref-meta">
+            <span class="ref-idx">#${i + 1}</span>
+            <span class="ref-src">${h.doc.filename}</span>
+            <span class="ref-score">相关度 ${h.score.toFixed(1)}</span>
+          </div>
+          <div class="ref-content">${highlight(h.snip, h.matched)}</div>
+        </div>`;
+      });
+    } else {
+      html += `<div class="ref-none">知识库中未检索到相关内容，可尝试更换关键词或先导入文档</div>`;
+    }
+    $('results').innerHTML = html;
+  }
+
+  function stopTyping() {
+    if (typingTimer) { clearInterval(typingTimer); typingTimer = null; }
+  }
+
+  // 流式输出回答
+  function streamAnswer(text) {
+    stopTyping();
+    $('emptyState').style.display = 'none';
+    const holder = $('results');
+    const box = document.createElement('div');
+    box.className = 'kb-answer';
+    box.innerHTML = `<div class="answer-head">
+        <span class="answer-badge"><svg viewBox="0 0 1024 1024" fill="currentColor"><path d="M512 96C282.6 96 96 282.6 96 512s186.6 416 416 416 416-186.6 416-416S741.4 96 512 96zm0 688a48 48 0 1 1 0-96 48 48 0 0 1 0 96zm60-240c0 8.8-7.2 16-16 16h-88c-8.8 0-16-7.2-16-16V440c0-8.8 7.2-16 16-16h88c8.8 0 16 7.2 16 16v104z"/></svg>AI 回答</span>
+        <span class="answer-hint">基于知识库片段生成，仅供参考</span>
+      </div>
+      <div class="answer-body"></div>`;
+    holder.appendChild(box);
+    const body = box.querySelector('.answer-body');
+    // 追加引用片段在回答上方已由 renderResults 处理
+    let i = 0;
+    typingTimer = setInterval(() => {
+      if (i < text.length) { body.textContent += text[i++]; box.scrollIntoView({ block: 'end', behavior: 'smooth' }); }
+      else { stopTyping(); setBusy(false); }
+    }, 18);
+  }
+
+  function setBusy(b) {
+    $('btnAsk').style.display = b ? 'none' : '';
+    $('btnStop').style.display = b ? '' : 'none';
+    $('btnSearch').disabled = b;
+    $('btnUpload').disabled = b;
+  }
+
+  // 仅检索
+  function doSearch() {
+    const q = $('query').value.trim();
+    if (!q) return;
+    hasSearched = true;
+    const hits = search(q);
+    renderResults(hits);
+  }
+  // 问答：检索 + 流式
+  function doAsk() {
+    const q = $('query').value.trim();
+    if (!q) return;
+    hasSearched = true;
+    const hits = search(q);
+    renderResults(hits);
+    setBusy(true);
+    streamAnswer(pickAnswer(q));
+  }
+
+  $('btnSearch').onclick = doSearch;
+  $('btnAsk').onclick = doAsk;
+  $('btnStop').onclick = () => { stopTyping(); setBusy(false); };
+  $('btnUpload').onclick = () => $('fileInput').click();
+  $('fileInput').onchange = (e) => {
+    const files = e.target.files;
+    if (!files.length) return;
+    for (const f of files) {
+      docs.unshift({ id: 'u' + Date.now() + Math.random().toString(36).slice(2,6), filename: f.name, chars: Math.floor(Math.random()*3000)+500, chunks: Math.floor(Math.random()*8)+2 });
+    }
+    renderDocs();
+    toast('已导入 ' + files.length + ' 个文档', 'ok');
+    e.target.value = '';
+  };
+  $('query').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+      e.preventDefault();
+      if (e.ctrlKey || e.metaKey) doSearch(); else doAsk();
+    }
+  });
+
+  // 初始
+  renderDocs();
+  renderEmpty();
+</script>
+</body>
+</html>

@@ -1,0 +1,79 @@
+/* ===== 全局样式：政务蓝 + 科技感主题 ===== */
+:root {
+  /* 主题色 */
+  --cj-primary: #1e4fa3;        /* 政务蓝 */
+  --cj-primary-light: #2f6bd4;
+  --cj-primary-gradient: linear-gradient(180deg, #1a3f8f 0%, #1e4fa3 55%, #16397a 100%);
+  --cj-bg: #f5f7fb;             /* 页面背景 */
+  --cj-border: #e4e9f2;
+  --cj-text-main: #1f2d3d;
+  --cj-text-sub: #8492a6;
+  --cj-hover-bg: #eef4fd;
+
+  /* 布局尺寸 */
+  --cj-nav-width: 84px;         /* 左侧导航宽度 */
+  --cj-conv-width: 240px;       /* 对话列表栏宽度 */
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
+  color: var(--cj-text-main);
+  background-color: var(--cj-bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 滚动条美化 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-thumb {
+  background: #c9d4e8;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #a8b8d8;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* 流式输出时的光标闪烁效果 */
+.cj-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  background: var(--cj-primary);
+  animation: cj-blink 0.9s steps(1) infinite;
+}
+@keyframes cj-blink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+/* 通用淡入动画 */
+.cj-fade-in {
+  animation: cj-fade-in 0.25s ease both;
+}
+@keyframes cj-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
