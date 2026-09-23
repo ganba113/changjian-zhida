@@ -1,6 +1,6 @@
 # OCR 可选依赖（RapidOCR onnxruntime 后端）
 # 说明：
-# - 本文件由 deploy/download_ocr.py 下载对应 aarch64 wheel 后，在 install.sh 中离线安装；
+# - 本文件由 deploy/download_wheels.py 下载对应 aarch64 wheel 后，在 install.sh 中离线安装；
 # - 未安装时 /api/ocr 返回 503 友好提示，不影响其他功能；
 # - onnxruntime / numpy 已在主 requirements.txt 中（复用向量检索依赖），此处不重复列出；
 # - 用 opencv-python-headless 替代 opencv-python：服务器无 GUI 环境，headless 不依赖 libGL 等系统库；
