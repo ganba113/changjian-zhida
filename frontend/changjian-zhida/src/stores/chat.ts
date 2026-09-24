@@ -159,7 +159,6 @@ export const useChatStore = defineStore('chat', () => {
           },
         },
         controller.signal,
-        undefined,
         activeLibraryId.value ?? undefined,
       )
     } catch (e) {

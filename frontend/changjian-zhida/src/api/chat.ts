@@ -1,6 +1,5 @@
 import axios from 'axios'
 import type {
-  AgentCard,
   Attachment,
   AdminConversation,
   AdminStats,
@@ -16,6 +15,7 @@ import type {
   PromptTemplates,
   SystemConfig,
   VllmHealth,
+  YsScreenResult,
 } from '@/types'
 
 /**
@@ -40,52 +40,6 @@ export const http = axios.create({
   headers: { 'X-User-Id': getUserId() },
 })
 
-/** 热门智能体配置（后续可改为后端下发） */
-export const HOT_AGENTS: AgentCard[] = [
-  {
-    id: 'law-search',
-    name: '法条检索',
-    description: '精准检索刑法、刑诉法等法律法规及司法解释',
-    icon: 'Search',
-    color: '#2f6bd4',
-  },
-  {
-    id: 'case-analysis',
-    name: '案件分析',
-    description: '围绕案件事实与证据，梳理争议焦点与定性思路',
-    icon: 'DataAnalysis',
-    color: '#0e9a8d',
-  },
-  {
-    id: 'doc-draft',
-    name: '文书起草',
-    description: '辅助生成审查报告、起诉书等法律文书初稿',
-    icon: 'EditPen',
-    color: '#c4762a',
-  },
-  {
-    id: 'similar-case',
-    name: '类案参考',
-    description: '检索相似案例，提供量刑建议与裁判观点参考',
-    icon: 'Files',
-    color: '#7a5ad4',
-  },
-  {
-    id: 'evidence-org',
-    name: '证据梳理',
-    description: '按证明体系整理证据链条，提示薄弱环节',
-    icon: 'Connection',
-    color: '#d45a6a',
-  },
-  {
-    id: 'procedure-guide',
-    name: '程序指引',
-    description: '办案全流程程序要点提示，规范司法办案行为',
-    icon: 'Guide',
-    color: '#3a8a5a',
-  },
-]
-
 /**
  * 发送消息并接收 AI 流式回答（SSE）。
  * 使用 fetch + ReadableStream 解析 SSE；支持 AbortSignal 终止。
@@ -107,7 +61,6 @@ export async function sendMessageStream(
   attachments: Attachment[],
   callbacks: StreamCallbacks,
   signal?: AbortSignal,
-  agentId?: string,
   libraryId?: string,
 ): Promise<void> {
   const res = await fetch(`${BASE_URL}/chat/completions`, {
@@ -120,7 +73,6 @@ export async function sendMessageStream(
       conversation_id: conversationId,
       message: question,
       attachments: attachments.length ? attachments : undefined,
-      agent_id: agentId || undefined,
       library_id: libraryId || undefined,
     }),
     signal,
@@ -214,9 +166,9 @@ export async function fetchKbLibraries(): Promise<KbLibrary[]> {
   return res.data?.data ?? []
 }
 
-/** 新建知识库 */
-export async function createKbLibrary(name: string): Promise<KbLibrary> {
-  const res = await http.post('/kb/libraries', { name })
+/** 新建知识库（isPublic=false 时仅创建者可见） */
+export async function createKbLibrary(name: string, isPublic = true): Promise<KbLibrary> {
+  const res = await http.post('/kb/libraries', { name, is_public: isPublic })
   return res.data
 }
 
@@ -440,4 +392,29 @@ export async function recognizeOcr(file: File): Promise<OcrResult> {
     const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail
     throw new Error(typeof detail === 'string' ? detail : '识别失败，请稍后重试')
   }
+}
+
+// ===== 检护营商智能体（食品安全处罚监督筛查）=====
+
+/** 查询主体碰撞数据量 */
+export async function fetchYsStatus(): Promise<{ collisionCount: number }> {
+  const res = await http.get('/agent/yingshang/status')
+  return res.data ?? { collisionCount: 0 }
+}
+
+/** 导入市监局许可/备案表（主体碰撞数据） */
+export async function importYsCollision(file: File): Promise<{ imported: number }> {
+  const form = new FormData()
+  form.append('file', file)
+  const res = await http.post('/agent/yingshang/import-collision', form, { timeout: 300000 })
+  return res.data
+}
+
+/** 筛查：上传字段表(xlsx)/文书文件，或粘贴文书文本 */
+export async function screenYs(payload: { file?: File; text?: string }): Promise<YsScreenResult> {
+  const form = new FormData()
+  if (payload.file) form.append('file', payload.file)
+  if (payload.text) form.append('text', payload.text)
+  const res = await http.post('/agent/yingshang/screen', form, { timeout: 300000 })
+  return res.data?.data ?? { total: 0, hintCount: 0, hints: [] }
 }

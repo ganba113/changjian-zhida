@@ -23,6 +23,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '智能体' },
       },
       {
+        path: 'agents/yingshang',
+        name: 'AgentYingshang',
+        component: () => import('@/views/agents/YingshangView.vue'),
+        meta: { title: '检护营商智能体' },
+      },
+      {
         path: 'knowledge',
         name: 'Knowledge',
         component: () => import('@/views/KnowledgeView.vue'),

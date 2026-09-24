@@ -36,6 +36,12 @@ const libraries = ref<KbLibrary[]>([])
 const libsLoading = ref(false)
 const reindexing = ref(false)
 
+// 新建知识库对话框
+const createVisible = ref(false)
+const newLibName = ref('')
+const newLibPublic = ref(true)
+const creating = ref(false)
+
 /** 当前视图：list=库列表，detail=库详情 */
 const view = ref<'list' | 'detail'>('list')
 const currentLibrary = ref<KbLibrary | null>(null)
@@ -109,25 +115,35 @@ async function handleReindex() {
   }
 }
 
-/** 新建知识库 */
-async function handleCreate() {
+/** 打开新建知识库对话框 */
+function openCreate() {
+  newLibName.value = ''
+  newLibPublic.value = true
+  createVisible.value = true
+}
+
+/** 提交新建知识库 */
+async function submitCreate() {
+  const name = newLibName.value.trim()
+  if (!name) {
+    ElMessage.warning('请输入知识库名称')
+    return
+  }
+  creating.value = true
   try {
-    const { value } = await ElMessageBox.prompt('请输入知识库名称', '新建知识库', {
-      confirmButtonText: '创建',
-      cancelButtonText: '取消',
-      inputValidator: (v: string) => (v && v.trim() ? true : '名称不能为空'),
-    })
-    const lib = await createKbLibrary(value.trim())
+    const lib = await createKbLibrary(name, newLibPublic.value)
     libraries.value.push(lib)
+    createVisible.value = false
     ElMessage.success('已创建「' + lib.name + '」')
   } catch (e) {
-    if (e === 'cancel' || e === 'close') return
     const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail
     ElMessage.error(typeof detail === 'string' ? detail : '创建失败')
+  } finally {
+    creating.value = false
   }
 }
 
-/** 删除知识库（需管理员密码确认） */
+/** 删除知识库（公开库需管理员密码，私有库创建者直接删） */
 async function handleDeleteLibrary(lib: KbLibrary) {
   try {
     await ElMessageBox.confirm(
@@ -138,18 +154,20 @@ async function handleDeleteLibrary(lib: KbLibrary) {
   } catch {
     return
   }
-  // 输入管理员密码
+  // 公开库需管理员密码；私有库创建者无需密码
   let password = ''
-  try {
-    const { value } = await ElMessageBox.prompt('请输入管理员密码', '身份验证', {
-      confirmButtonText: '确认删除',
-      cancelButtonText: '取消',
-      inputType: 'password',
-      inputValidator: (v: string) => (v && v.trim() ? true : '密码不能为空'),
-    })
-    password = value
-  } catch {
-    return
+  if (lib.isPublic) {
+    try {
+      const { value } = await ElMessageBox.prompt('请输入管理员密码', '身份验证', {
+        confirmButtonText: '确认删除',
+        cancelButtonText: '取消',
+        inputType: 'password',
+        inputValidator: (v: string) => (v && v.trim() ? true : '密码不能为空'),
+      })
+      password = value
+    } catch {
+      return
+    }
   }
   try {
     await removeKbLibrary(lib.id, password)
@@ -291,7 +309,7 @@ onMounted(loadLibraries)
           <p class="kb-sub">按部门分类管理知识库，导入法律法规、司法解释、典型案例与内部规范</p>
         </div>
         <el-button :icon="Refresh" :loading="reindexing" @click="handleReindex">重建索引</el-button>
-        <el-button type="primary" :icon="Plus" @click="handleCreate">新建知识库</el-button>
+        <el-button type="primary" :icon="Plus" @click="openCreate">新建知识库</el-button>
       </header>
 
       <div v-loading="libsLoading" class="lib-grid">
@@ -306,7 +324,10 @@ onMounted(loadLibraries)
               <Delete />
             </el-icon>
           </div>
-          <div class="lib-name">{{ lib.name }}</div>
+          <div class="lib-name">
+            {{ lib.name }}
+            <span v-if="!lib.isPublic" class="lib-priv">私有</span>
+          </div>
           <div class="lib-count">{{ lib.docCount }} 篇文档</div>
         </div>
 
@@ -314,6 +335,30 @@ onMounted(loadLibraries)
           <el-empty description="暂无知识库，点击右上角新建" :image-size="100" />
         </div>
       </div>
+
+      <!-- 新建知识库对话框 -->
+      <el-dialog v-model="createVisible" title="新建知识库" width="440px" destroy-on-close>
+        <el-form label-width="88px" @submit.prevent>
+          <el-form-item label="名称">
+            <el-input
+              v-model="newLibName"
+              placeholder="请输入知识库名称"
+              maxlength="30"
+              @keyup.enter="submitCreate"
+            />
+          </el-form-item>
+          <el-form-item label="是否公开">
+            <el-switch v-model="newLibPublic" active-text="公开" inactive-text="私有" inline-prompt />
+            <div class="create-tip">
+              {{ newLibPublic ? '公开：所有用户均可在知识库界面看到并检索' : '私有：仅您本人可见，其他用户的知识库界面不显示' }}
+            </div>
+          </el-form-item>
+        </el-form>
+        <template #footer>
+          <el-button @click="createVisible = false">取消</el-button>
+          <el-button type="primary" :loading="creating" @click="submitCreate">创建</el-button>
+        </template>
+      </el-dialog>
     </template>
 
     <!-- ============ 二级：库详情 ============ -->
@@ -534,6 +579,25 @@ onMounted(loadLibraries)
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.lib-priv {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #c4762a;
+  background: #fdf3e7;
+  border: 1px solid #f0d9b8;
+  vertical-align: 1px;
+}
+.create-tip {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--cj-text-sub);
 }
 .lib-count {
   margin-top: 6px;

@@ -30,27 +30,11 @@ export interface Conversation {
   updateTime: number
 }
 
-/** 热门智能体卡片 */
-export interface AgentCard {
-  id: string
-  name: string
-  description: string
-  icon: string
-  color: string
-}
-
 /** 左侧导航项 */
 export interface NavItem {
   path: string
   title: string
   icon: string
-}
-
-/** 智能体（后端下发） */
-export interface Agent {
-  id: string
-  name: string
-  description: string
 }
 
 /** 知识库（部门库） */
@@ -59,6 +43,8 @@ export interface KbLibrary {
   name: string
   docCount: number
   createTime: number
+  /** 是否公开（false 为仅创建者可见的私有库） */
+  isPublic: boolean
 }
 
 /** 知识库文档 */
@@ -180,4 +166,24 @@ export interface PromptTemplates {
   system_prompt_default: string
   identity_notice: string
   output_format_notice: string
+}
+
+/** 检护营商智能体：单条筛查线索 */
+export interface YsHint {
+  doc_no: string
+  party: string
+  credit_code: string
+  source_pool: string
+  main_article: string
+  fine: string
+  goods_value: string
+  level: string
+  rules: { code: string; name: string; detail: string }[]
+}
+
+/** 检护营商智能体：筛查结果 */
+export interface YsScreenResult {
+  total: number
+  hintCount: number
+  hints: YsHint[]
 }

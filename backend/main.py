@@ -27,11 +27,14 @@ from pathlib import Path
 from typing import AsyncIterator, Optional, List
 
 import httpx
-from fastapi import FastAPI, HTTPException, UploadFile, File, Header
+from fastapi import FastAPI, HTTPException, UploadFile, File, Header, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+
+# 检护营商智能体 —— 食品安全行政处罚监督线索筛查（规则引擎模块，与 main.py 同目录）
+import agent_yingshang
 
 # 内置 vendor 依赖：纯 Python 源码包（如 jieba）随部署分发，运行时注入路径，无需 pip 安装
 import sys as _sys
@@ -129,62 +132,7 @@ OUTPUT_FORMAT_NOTICE = (
     "需要分点或列项时，直接用「1.」「2.」「3.」或「第一，」「第二，」这类文字编号。"
 )
 
-AGENTS: dict = {
-    "law-search": {
-        "name": "法条检索",
-        "system": (
-            "你是「法条检索」智能体，专注中国法律法规与司法解释的精准检索。"
-            "回答时：1）优先给出与问题最相关的法条原文及条款序号；"
-            "2）说明该法条的适用范围与构成要件；3）如涉及刑法请区分罪名、量刑档次；"
-            "4）引用司法解释时注明文号。若不确定某法条是否现行有效，请明确提示需核实。"
-        ),
-    },
-    "case-analysis": {
-        "name": "案件分析",
-        "system": (
-            "你是「案件分析」智能体，围绕案件事实与证据梳理争议焦点、给出定性思路。"
-            "回答时：1）先归纳案件事实与争议焦点；2）从犯罪构成/法律关系要件逐层分析；"
-            "3）指出可能存在的定性分歧；4）给出倾向性意见并说明理由。"
-            "不得臆测未提供的案件事实，缺失信息需明确列出。"
-        ),
-    },
-    "doc-draft": {
-        "name": "文书起草",
-        "system": (
-            "你是「文书起草」智能体，辅助生成检察法律文书初稿。"
-            "回答时：1）按规范文书结构输出（首部、正文、尾部）；"
-            "2）正文要素齐全、表述严谨规范；3）涉及事实与证据的部分用占位符标注待核实内容；"
-            "4）结尾提示本文书为初稿，须经审核后使用。"
-        ),
-    },
-    "similar-case": {
-        "name": "类案参考",
-        "system": (
-            "你是「类案参考」智能体，提供类案裁判观点与量刑参考。"
-            "回答时：1）概括类案的典型裁判要旨；2）区分从重/从轻情节对量刑的影响；"
-            "3）给出量刑建议区间并说明依据；4）强调类案仅供参考，个案须综合全案情节。"
-            "不掌握真实案例库时请明确说明，并基于法理给出参考意见。"
-        ),
-    },
-    "evidence-org": {
-        "name": "证据梳理",
-        "system": (
-            "你是「证据梳理」智能体，按证明体系整理证据链条。"
-            "回答时：1）按「证据种类→证明对象→证明力」归类；"
-            "2）梳理证据之间的印证关系与矛盾点；3）提示证据薄弱环节与补证建议；"
-            "4）严格遵守证据裁判原则，不替代承办人作出事实认定。"
-        ),
-    },
-    "procedure-guide": {
-        "name": "程序指引",
-        "system": (
-            "你是「程序指引」智能体，提供办案全流程程序要点提示。"
-            "回答时：1）按阶段（受理/立案/侦查/审查逮捕/审查起诉/审判监督等）给出程序要点；"
-            "2）标明法定期限与程序权利；3）提示易错程序环节；"
-            "4）依据《刑事诉讼法》《人民检察院刑事诉讼规则》等现行规范。"
-        ),
-    },
-}
+# 智能体模块：预置智能体已移除，待重新设计（对话统一走默认助手）
 
 
 # 提示词模板覆盖（后台可编辑，存 sys_config；为空则用代码里的默认常量）
@@ -205,11 +153,8 @@ def _load_prompt_overrides() -> None:
         _PROMPT_OVERRIDES = {}
 
 
-def system_prompt_for(agent_id: Optional[str]) -> str:
-    if not agent_id:
-        base = _PROMPT_OVERRIDES.get("system_prompt_default") or DEFAULT_SYSTEM
-    else:
-        base = AGENTS.get(agent_id, {}).get("system", DEFAULT_SYSTEM)
+def system_prompt_for() -> str:
+    base = _PROMPT_OVERRIDES.get("system_prompt_default") or DEFAULT_SYSTEM
     identity = _PROMPT_OVERRIDES.get("identity_notice") or IDENTITY_NOTICE
     fmt = _PROMPT_OVERRIDES.get("output_format_notice") or OUTPUT_FORMAT_NOTICE
     return base + "\n\n" + identity + "\n\n" + fmt
@@ -362,8 +307,9 @@ def init_db() -> None:
             "CREATE INDEX IF NOT EXISTS idx_fb_conv ON feedback(conversation_id)"
         )
 
-    # 知识库改为全局共享：把旧版（按用户隔离）的历史数据迁移到 shared
-    _migrate_kb_to_shared()
+    # 检护营商智能体：主体碰撞表（市监局许可/备案数据，按统一社会信用代码索引）
+    with _db() as conn:
+        conn.executescript(agent_yingshang.COLLISION_TABLE_SQL)
 
     # 加载提示词模板覆盖（后台可编辑，存 sys_config）
     _load_prompt_overrides()
@@ -850,59 +796,35 @@ def _ensure_default_libraries(user_id: str) -> None:
                 )
 
 
-def _migrate_kb_to_shared() -> None:
-    """旧版知识库按用户隔离，现改为全局共享：把历史数据合并到 shared。"""
+# 注意：知识库现已支持「公开(shared) / 私有(具体用户)」两种归属。
+# 旧版「按用户隔离 → 全局共享」的一次性迁移已完成，这里不再做任何跨 user_id 合并，
+# 否则会把新建的私有库误合并到 shared。
+
+
+def _get_library_owner(lib_id: str) -> Optional[str]:
+    """返回知识库的归属（'shared' 表示公开，其余为用户 id 表示私有），不存在返回 None。"""
     with _db() as conn:
-        old_libs = conn.execute(
-            "SELECT id, name FROM kb_libraries WHERE user_id != ?", (KB_USER,)
-        ).fetchall()
-        if not old_libs:
-            return
-        # 确保 shared 默认库存在
-        if (
-            conn.execute(
-                "SELECT COUNT(*) FROM kb_libraries WHERE user_id = ?", (KB_USER,)
-            ).fetchone()[0]
-            == 0
-        ):
-            for i, name in enumerate(DEFAULT_LIBRARIES):
-                conn.execute(
-                    "INSERT INTO kb_libraries(id, user_id, name, sort_order, create_time) "
-                    "VALUES (?, ?, ?, ?, ?)",
-                    (uuid.uuid4().hex, KB_USER, name, i, _now_ms()),
-                )
-        # 迁移每个老库
-        for lib in old_libs:
-            shared = conn.execute(
-                "SELECT id FROM kb_libraries WHERE user_id = ? AND name = ?",
-                (KB_USER, lib["name"]),
-            ).fetchone()
-            if shared:
-                # 文档迁到同名 shared 库
-                conn.execute(
-                    "UPDATE kb_documents SET user_id = ?, library_id = ? WHERE library_id = ?",
-                    (KB_USER, shared["id"], lib["id"]),
-                )
-                conn.execute("DELETE FROM kb_libraries WHERE id = ?", (lib["id"],))
-            else:
-                # shared 无同名库，直接改归属
-                conn.execute(
-                    "UPDATE kb_libraries SET user_id = ? WHERE id = ?",
-                    (KB_USER, lib["id"]),
-                )
-                conn.execute(
-                    "UPDATE kb_documents SET user_id = ? WHERE library_id = ?",
-                    (KB_USER, lib["id"]),
-                )
+        row = conn.execute(
+            "SELECT user_id FROM kb_libraries WHERE id = ?", (lib_id,)
+        ).fetchone()
+    return row["user_id"] if row else None
+
+
+def _can_access_library(user_id: str, owner: Optional[str]) -> bool:
+    """判断 user_id 是否可访问归属为 owner 的库（公开库所有人可访问，私有库仅本人）。"""
+    return owner is not None and (owner == KB_USER or owner == user_id)
 
 
 def _list_libraries(user_id: str) -> list[dict]:
+    """列出用户可见的知识库：公开(shared)库 + 本人私有库，公开库排前。"""
     with _db() as conn:
         rows = conn.execute(
-            "SELECT l.id, l.name, l.create_time, COUNT(d.id) AS doc_count "
+            "SELECT l.id, l.name, l.user_id, l.create_time, COUNT(d.id) AS doc_count "
             "FROM kb_libraries l LEFT JOIN kb_documents d ON d.library_id = l.id "
-            "WHERE l.user_id = ? GROUP BY l.id ORDER BY l.sort_order ASC, l.create_time ASC",
-            (user_id,),
+            "WHERE l.user_id = ? OR l.user_id = ? "
+            "GROUP BY l.id "
+            "ORDER BY (l.user_id != ?) ASC, l.sort_order ASC, l.create_time ASC",
+            (KB_USER, user_id, KB_USER),
         ).fetchall()
     return [
         {
@@ -910,33 +832,35 @@ def _list_libraries(user_id: str) -> list[dict]:
             "name": r["name"],
             "docCount": r["doc_count"],
             "createTime": r["create_time"],
+            "isPublic": r["user_id"] == KB_USER,
         }
         for r in rows
     ]
 
 
-def _add_library(user_id: str, name: str) -> dict:
+def _add_library(user_id: str, name: str, is_public: bool = True) -> dict:
     name = name.strip()
     if not name:
         raise HTTPException(status_code=400, detail="知识库名称不能为空")
+    owner = KB_USER if is_public else user_id
     with _db() as conn:
         dup = conn.execute(
-            "SELECT id FROM kb_libraries WHERE user_id = ? AND name = ?", (user_id, name)
+            "SELECT id FROM kb_libraries WHERE user_id = ? AND name = ?", (owner, name)
         ).fetchone()
         if dup:
             raise HTTPException(status_code=400, detail="已存在同名知识库")
         max_order = conn.execute(
             "SELECT COALESCE(MAX(sort_order), -1) FROM kb_libraries WHERE user_id = ?",
-            (user_id,),
+            (owner,),
         ).fetchone()[0]
         lib_id = uuid.uuid4().hex
         ts = _now_ms()
         conn.execute(
             "INSERT INTO kb_libraries(id, user_id, name, sort_order, create_time) "
             "VALUES (?, ?, ?, ?, ?)",
-            (lib_id, user_id, name, max_order + 1, ts),
+            (lib_id, owner, name, max_order + 1, ts),
         )
-    return {"id": lib_id, "name": name, "docCount": 0, "createTime": ts}
+    return {"id": lib_id, "name": name, "docCount": 0, "createTime": ts, "isPublic": is_public}
 
 
 def _delete_library(user_id: str, lib_id: str) -> bool:
@@ -959,9 +883,11 @@ def _delete_library(user_id: str, lib_id: str) -> bool:
 
 
 def _get_library_name(user_id: str, lib_id: str) -> str:
+    """返回用户可见库的名称（公开库或本人私有库），不可见/不存在返回空串。"""
     with _db() as conn:
         row = conn.execute(
-            "SELECT name FROM kb_libraries WHERE id = ? AND user_id = ?", (lib_id, user_id)
+            "SELECT name FROM kb_libraries WHERE id = ? AND (user_id = ? OR user_id = ?)",
+            (lib_id, user_id, KB_USER),
         ).fetchone()
     return row["name"] if row else ""
 
@@ -1027,8 +953,8 @@ def _get_kb_document(user_id: str, doc_id: str) -> Optional[dict]:
     with _db() as conn:
         row = conn.execute(
             "SELECT id, library_id, filename, content, char_count, chunk_count, create_time "
-            "FROM kb_documents WHERE id = ? AND user_id = ?",
-            (doc_id, user_id),
+            "FROM kb_documents WHERE id = ? AND (user_id = ? OR user_id = ?)",
+            (doc_id, user_id, KB_USER),
         ).fetchone()
     if row is None:
         return None
@@ -1048,21 +974,24 @@ def _kb_search(
 ) -> List[dict]:
     """混合检索：BM25 关键词 + 向量语义，RRF 融合。向量不可用时退化为纯 BM25。"""
     if library_id:
+        # 指定库：先校验用户可见，不可见返回空
+        if not _get_library_name(user_id, library_id):
+            return []
         sql = (
             "SELECT c.id, c.doc_id, c.content, c.vec, d.filename, l.name AS lib_name FROM kb_chunks c "
             "JOIN kb_documents d ON c.doc_id = d.id "
             "JOIN kb_libraries l ON d.library_id = l.id "
-            "WHERE d.user_id = ? AND d.library_id = ?"
+            "WHERE d.library_id = ?"
         )
-        params = (user_id, library_id)
+        params = (library_id,)
     else:
         sql = (
             "SELECT c.id, c.doc_id, c.content, c.vec, d.filename, l.name AS lib_name FROM kb_chunks c "
             "JOIN kb_documents d ON c.doc_id = d.id "
             "LEFT JOIN kb_libraries l ON d.library_id = l.id "
-            "WHERE d.user_id = ?"
+            "WHERE d.user_id = ? OR d.user_id = ?"
         )
-        params = (user_id,)
+        params = (KB_USER, user_id)
     with _db() as conn:
         rows = conn.execute(sql, params).fetchall()
     if not rows:
@@ -1135,7 +1064,6 @@ class ChatRequest(BaseModel):
     conversation_id: Optional[str] = None  # 为空则由后端生成新会话
     message: str
     attachments: Optional[List[Attachment]] = None
-    agent_id: Optional[str] = None  # 智能体 id（法条检索/案件分析/文书起草等）
     library_id: Optional[str] = None  # 选择知识库进行 RAG 问答（为空则普通对话）
     deep_think: Optional[bool] = None  # 深度思考：True 开启模型思考模式，None 用全局默认
 
@@ -1148,6 +1076,7 @@ class KBQuery(BaseModel):
 
 class LibraryCreate(BaseModel):
     name: str
+    is_public: Optional[bool] = True  # 是否公开（False=私有，仅创建者可见）
 
 
 class AdminConfigRequest(BaseModel):
@@ -1191,28 +1120,6 @@ def submit_feedback(req: FeedbackRequest):
             (uuid.uuid4().hex, req.message_id, req.conversation_id, req.rating, _now_ms()),
         )
     return {"ok": True}
-
-
-# 智能体描述（与前端卡片一致）
-_AGENT_DESCS = {
-    "law-search": "精准检索刑法、刑诉法等法律法规及司法解释",
-    "case-analysis": "围绕案件事实与证据，梳理争议焦点与定性思路",
-    "doc-draft": "辅助生成审查报告、起诉书等法律文书初稿",
-    "similar-case": "检索相似案例，提供量刑建议与裁判观点参考",
-    "evidence-org": "按证明体系整理证据链条，提示薄弱环节",
-    "procedure-guide": "办案全流程程序要点提示，规范司法办案行为",
-}
-
-
-@app.get("/api/agents")
-def list_agents():
-    """返回可用智能体列表（id / 名称 / 描述）。"""
-    return {
-        "data": [
-            {"id": aid, "name": a["name"], "description": _AGENT_DESCS.get(aid, "")}
-            for aid, a in AGENTS.items()
-        ]
-    }
 
 
 # 图片等模型无法理解的格式（当前模型为纯文本，无视觉能力）
@@ -1344,13 +1251,15 @@ async def chat_completions(req: ChatRequest, x_user_id: Optional[str] = Header(d
     history = get_conversation_messages(conv_id)
     messages: list[dict] = []
     # 智能体专属 system prompt 放在最前
-    sys_content = system_prompt_for(req.agent_id)
+    sys_content = system_prompt_for()
     retrieval_hits: list = []  # RAG 召回片段（回传给前端展示引用来源）
     # 选择知识库时：检索片段拼入同一个 system（仅本次请求，不写入历史）
     # 注意：不能追加第二个 system 消息，Qwen chat template 对连续 system 会返回 400
     if req.library_id:
-        hits = _kb_search(KB_USER, text, KB_TOP_K, req.library_id)
-        lib_name = _get_library_name(KB_USER, req.library_id)
+        if not _get_library_name(user_id, req.library_id):
+            raise HTTPException(status_code=403, detail="无权访问该知识库")
+        hits = _kb_search(user_id, text, KB_TOP_K, req.library_id)
+        lib_name = _get_library_name(user_id, req.library_id)
         if hits:
             retrieval_hits = [
                 {"docId": h["docId"], "filename": h["filename"], "content": h["content"], "score": h["score"]}
@@ -1442,34 +1351,48 @@ def remove_conversation(conv_id: str, x_user_id: Optional[str] = Header(default=
 # 知识库（部门库）接口
 # ---------------------------------------------------------------------------
 @app.get("/api/kb/libraries")
-def kb_list_libraries():
-    """列出知识库（所有用户共享，首次自动创建 12 个默认部门库）。"""
+def kb_list_libraries(x_user_id: Optional[str] = Header(default=None)):
+    """列出知识库：公开(shared)库 + 本人私有库；首次自动创建 12 个默认部门库。"""
     _ensure_default_libraries(KB_USER)
-    return {"data": _list_libraries(KB_USER)}
+    return {"data": _list_libraries(get_user_id(x_user_id))}
 
 
 @app.post("/api/kb/libraries")
-def kb_create_library(req: LibraryCreate):
-    return _add_library(KB_USER, req.name)
+def kb_create_library(req: LibraryCreate, x_user_id: Optional[str] = Header(default=None)):
+    return _add_library(get_user_id(x_user_id), req.name, req.is_public)
 
 
 @app.delete("/api/kb/libraries/{lib_id}")
 def kb_delete_library(
     lib_id: str,
+    x_user_id: Optional[str] = Header(default=None),
     x_admin_password: Optional[str] = Header(default=None, alias="X-Admin-Password"),
 ):
-    """删除知识库（需管理员密码确认）。"""
-    if x_admin_password != ADMIN_PASSWORD:
-        raise HTTPException(status_code=403, detail="管理员密码错误")
-    if not _delete_library(KB_USER, lib_id):
+    """删除知识库：公开库需管理员密码；私有库仅创建者可删（无需密码）。"""
+    uid = get_user_id(x_user_id)
+    owner = _get_library_owner(lib_id)
+    if owner is None:
+        raise HTTPException(status_code=404, detail="知识库不存在")
+    if owner == KB_USER:
+        if x_admin_password != ADMIN_PASSWORD:
+            raise HTTPException(status_code=403, detail="管理员密码错误")
+    elif owner != uid:
+        raise HTTPException(status_code=403, detail="无权删除该知识库")
+    if not _delete_library(owner, lib_id):
         raise HTTPException(status_code=404, detail="知识库不存在")
     return {"ok": True}
 
 
 @app.post("/api/kb/libraries/{lib_id}/documents")
-async def kb_upload_document(lib_id: str, file: UploadFile = File(...)):
+async def kb_upload_document(
+    lib_id: str,
+    file: UploadFile = File(...),
+    x_user_id: Optional[str] = Header(default=None),
+):
     """上传文档到指定知识库（提取文本 + 切块 + 建索引）。"""
-    if not _get_library_name(KB_USER, lib_id):
+    uid = get_user_id(x_user_id)
+    owner = _get_library_owner(lib_id)
+    if not _can_access_library(uid, owner):
         raise HTTPException(status_code=404, detail="知识库不存在")
     filename = file.filename or ""
     ext = filename.lower().rsplit(".", 1)[-1] if "." in filename else ""
@@ -1485,19 +1408,25 @@ async def kb_upload_document(lib_id: str, file: UploadFile = File(...)):
             detail="无法提取文档内容，请使用 txt/md/pdf/docx/xlsx/doc 等格式",
         )
     text = text[:KB_MAX_DOC_CHARS]
-    return _add_kb_document(KB_USER, lib_id, filename or "未命名", text)
+    return _add_kb_document(owner, lib_id, filename or "未命名", text)
 
 
 @app.get("/api/kb/libraries/{lib_id}/documents")
-def kb_list_documents(lib_id: str):
-    return {"data": _list_kb_documents(KB_USER, lib_id)}
+def kb_list_documents(lib_id: str, x_user_id: Optional[str] = Header(default=None)):
+    uid = get_user_id(x_user_id)
+    owner = _get_library_owner(lib_id)
+    if not _can_access_library(uid, owner):
+        raise HTTPException(status_code=404, detail="知识库不存在")
+    return {"data": _list_kb_documents(owner, lib_id)}
 
 
 @app.delete("/api/kb/documents/{doc_id}")
-def kb_delete_document(doc_id: str):
+def kb_delete_document(doc_id: str, x_user_id: Optional[str] = Header(default=None)):
+    uid = get_user_id(x_user_id)
     with _db() as conn:
         cur = conn.execute(
-            "DELETE FROM kb_documents WHERE id = ? AND user_id = ?", (doc_id, KB_USER)
+            "DELETE FROM kb_documents WHERE id = ? AND (user_id = ? OR user_id = ?)",
+            (doc_id, uid, KB_USER),
         )
         conn.execute("DELETE FROM kb_chunks WHERE doc_id = ?", (doc_id,))
     if cur.rowcount == 0:
@@ -1506,21 +1435,21 @@ def kb_delete_document(doc_id: str):
 
 
 @app.get("/api/kb/documents/{doc_id}")
-def kb_get_document(doc_id: str):
+def kb_get_document(doc_id: str, x_user_id: Optional[str] = Header(default=None)):
     """获取单个文档的完整内容（用于点击查看原文）。"""
-    doc = _get_kb_document(KB_USER, doc_id)
+    doc = _get_kb_document(get_user_id(x_user_id), doc_id)
     if doc is None:
         raise HTTPException(status_code=404, detail="文档不存在")
     return doc
 
 
 @app.post("/api/kb/search")
-def kb_search(req: KBQuery):
+def kb_search(req: KBQuery, x_user_id: Optional[str] = Header(default=None)):
     query = req.query.strip()
     if not query:
         raise HTTPException(status_code=400, detail="检索词不能为空")
     top_k = req.top_k or KB_TOP_K
-    return {"data": _kb_search(KB_USER, query, top_k, req.library_id)}
+    return {"data": _kb_search(get_user_id(x_user_id), query, top_k, req.library_id)}
 
 
 @app.post("/api/kb/reindex")
@@ -2144,6 +2073,122 @@ def admin_set_prompts(
             "system_prompt_default": _PROMPT_OVERRIDES.get("system_prompt_default") or DEFAULT_SYSTEM,
             "identity_notice": _PROMPT_OVERRIDES.get("identity_notice") or IDENTITY_NOTICE,
             "output_format_notice": _PROMPT_OVERRIDES.get("output_format_notice") or OUTPUT_FORMAT_NOTICE,
+        }
+    }
+
+
+# ---------------------------------------------------------------------------
+# 检护营商智能体（食品安全行政处罚监督线索筛查）
+# ---------------------------------------------------------------------------
+async def _vllm_complete(messages: list, max_tokens: int = 2048) -> str:
+    """非流式调用 vLLM，返回完整文本（用于字段提取等结构化输出）。"""
+    payload = {
+        "model": VLLM_MODEL,
+        "messages": messages,
+        "stream": False,
+        "temperature": 0.1,
+        "max_tokens": max_tokens,
+        "chat_template_kwargs": {"enable_thinking": False},
+    }
+    async with httpx.AsyncClient(
+        timeout=httpx.Timeout(connect=10.0, read=300.0, write=30.0, pool=10.0)
+    ) as client:
+        resp = await client.post(f"{VLLM_BASE_URL}/chat/completions", json=payload)
+        if resp.status_code != 200:
+            raise RuntimeError(f"模型服务返回错误 {resp.status_code}：{resp.text[:300]}")
+        data = resp.json()
+        return (data.get("choices") or [{}])[0].get("message", {}).get("content", "") or ""
+
+
+def _ys_collision_lookup(credit_code: str) -> bool:
+    """查询信用代码是否在小规模许可/备案表中。"""
+    with _db() as conn:
+        row = conn.execute(
+            "SELECT 1 FROM ys_collision WHERE credit_code = ?", (credit_code,)
+        ).fetchone()
+    return row is not None
+
+
+async def _extract_fields_llm(text: str) -> list:
+    """用 LLM 从文书文本提取字段，返回 list[dict]（可能一案多行为）。"""
+    messages = [
+        {"role": "system", "content": agent_yingshang.EXTRACT_SYSTEM},
+        {"role": "user", "content": agent_yingshang.build_extract_prompt(text)},
+    ]
+    content = await _vllm_complete(messages)
+    obj = agent_yingshang.parse_json_lenient(content)
+    if not obj:
+        raise HTTPException(status_code=502, detail="字段提取失败，请检查文书内容或稍后重试")
+    if isinstance(obj, dict):
+        return [obj]
+    if isinstance(obj, list):
+        return [x for x in obj if isinstance(x, dict)]
+    raise HTTPException(status_code=502, detail="字段提取结果格式异常")
+
+
+@app.get("/api/agent/yingshang/status")
+def ys_status():
+    """检护营商智能体状态：主体碰撞数据量。"""
+    with _db() as conn:
+        cnt = conn.execute("SELECT COUNT(*) FROM ys_collision").fetchone()[0]
+    return {"collisionCount": cnt}
+
+
+@app.post("/api/agent/yingshang/import-collision")
+async def ys_import_collision(file: UploadFile = File(...)):
+    """导入市监局许可/备案表（xlsx），用于主体碰撞（机制五/六）。"""
+    data = await file.read()
+    rows = agent_yingshang.parse_collision_xlsx(data, file.filename or "")
+    if not rows:
+        raise HTTPException(status_code=422, detail="未解析到「统一社会信用代码」列，请确认表格格式")
+    with _db() as conn:
+        for code, name, source, detail in rows:
+            conn.execute(
+                "INSERT INTO ys_collision(credit_code, name, source, detail) VALUES (?,?,?,?) "
+                "ON CONFLICT(credit_code) DO UPDATE SET name=excluded.name, "
+                "source=excluded.source, detail=excluded.detail",
+                (code, name, source, detail),
+            )
+    return {"ok": True, "imported": len(rows)}
+
+
+@app.post("/api/agent/yingshang/screen")
+async def ys_screen(
+    file: Optional[UploadFile] = File(default=None),
+    text: Optional[str] = Form(default=None),
+    fields: Optional[str] = Form(default=None),
+):
+    """筛查：输入字段表（JSON/xlsx）或文书（文本/文件），输出两档线索清单。"""
+    records: list = []
+    # 1. 直接传字段 JSON
+    if fields:
+        try:
+            parsed = json.loads(fields)
+        except Exception:
+            raise HTTPException(status_code=422, detail="fields 不是合法 JSON")
+        records = parsed if isinstance(parsed, list) else [parsed]
+    # 2. 上传文件：xlsx=字段表，doc/txt/pdf 等=文书
+    if not records and file is not None:
+        data = await file.read()
+        fname = file.filename or ""
+        ext = fname.lower().rsplit(".", 1)[-1] if "." in fname else ""
+        if ext in ("xlsx", "xls"):
+            records = agent_yingshang.parse_fields_xlsx(data)
+        else:
+            text = extract_text(fname, data)
+    # 3. 文书文本 -> LLM 提取字段
+    if not records and text:
+        records = await _extract_fields_llm(text.strip())
+
+    if not records:
+        raise HTTPException(status_code=422, detail="未提供有效的字段表或文书内容")
+
+    hints = agent_yingshang.screen_records(records, _ys_collision_lookup)
+    return {
+        "data": {
+            "total": len(records),
+            "hintCount": len(hints),
+            "hints": hints,
         }
     }
 

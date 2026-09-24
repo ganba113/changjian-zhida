@@ -35,7 +35,8 @@ const bottomItem: NavItem & { iconComp: Component } = {
   iconComp: Setting,
 }
 
-const isActive = (path: string) => route.path === path
+/** 高亮判断：精确匹配，或子路由（如 /agents/yingshang 归属 /agents） */
+const isActive = (path: string) => route.path === path || route.path.startsWith(path + '/')
 
 function navigate(item: NavItem) {
   if (!isActive(item.path)) router.push(item.path)
